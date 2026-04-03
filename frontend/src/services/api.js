@@ -137,3 +137,15 @@ export async function setSimulationMode(mode) {
 export async function getSimulationMode() {
   return apiFetch("/mode");
 }
+
+/**
+ * POST /analyse
+ * Send parsed dataset rows to backend for threat analysis.
+ * Uses a long timeout (60s) since datasets can be large.
+ */
+export async function analyseDataset(rows, filename) {
+  return apiFetch("/analyse", {
+    method: "POST",
+    body:   JSON.stringify({ rows, filename }),
+  }, 60_000);
+}

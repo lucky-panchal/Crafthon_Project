@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes import simulate, telemetry, detection
 from app.routes.auth import router as auth_router
+from app.routes.report import router as report_router
 
 logging.basicConfig(
     stream=sys.stdout,
@@ -29,8 +30,8 @@ app = FastAPI(title="RAKSHA Backend", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -44,8 +45,7 @@ def root():
 # Auth — JWT + Google + GitHub OAuth
 app.include_router(auth_router)
 
-# Simulation endpoints — mounted with and without /api prefix
-app.include_router(simulate.router, prefix="/api")
+# Simulation endpoints — /set-mode, /mode, /simulate, /alerts
 app.include_router(simulate.router)
 
 # WebSocket telemetry
@@ -53,3 +53,6 @@ app.include_router(telemetry.router)
 
 # Detection WebSocket + POST /detect
 app.include_router(detection.router)
+
+# Report PDF export
+app.include_router(report_router)

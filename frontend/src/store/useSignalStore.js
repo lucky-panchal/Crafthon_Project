@@ -25,15 +25,98 @@ const SIM = {
 };
 
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
-
 function step(current, cfg) {
-  return parseFloat(
-    clamp(current + (Math.random() - 0.5) * 2 * cfg.drift, cfg.min, cfg.max).toFixed(2)
-  );
+  return parseFloat(clamp(current + (Math.random() - 0.5) * 2 * cfg.drift, cfg.min, cfg.max).toFixed(2));
 }
 
-// Module-level — never stored in Zustand state, no re-renders, no StrictMode issues
-let _fallbackTimer = null;
+let _fallbackTimer  = null;
+let _datasetTimer   = null;
+
+// ── Dataset row parser ────────────────────────────────────────────────────────
+// Tries to extract snr, packetLoss, packetRate from any row object.
+function extractRow(row) {
+  const k = (obj, ...keys) => {
+    for (const key of keys) {
+      const found = Object.keys(obj).find((k) => k.toLowerCase().replace(/[^a-z]/g, "") === key);
+      if (found !== undefined && obj[found] !== "" && !isNaN(Number(obj[found]))) return Number(obj[found]);
+    }
+    return null;
+  };
+  return {
+    snr:        k(row, "snr", "signaltonoise", "signal"),
+    packetLoss: k(row, "packetloss", "loss", "pktloss", "losspct"),
+    packetRate: k(row, "packetrate", "rate", "pktrate", "packets"),
+  };
+}
+
+// ── CSV parser (no dependency) ────────────────────────────────────────────────
+function parseCSV(text) {
+  const lines  = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
+  return lines.slice(1).map((line) => {
+    const vals = line.split(",").map((v) => v.trim().replace(/^"|"$/g, ""));
+    return Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? ""]));
+  });
+}
+
+// ── TSV / plain text parser ───────────────────────────────────────────────────
+function parseTSV(text) {
+  const lines   = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const sep     = lines[0].includes("\t") ? "\t" : /\s{2,}/.test(lines[0]) ? /\s{2,}/ : " ";
+  const headers = lines[0].split(sep).map((h) => h.trim());
+  return lines.slice(1).map((line) => {
+    const vals = line.split(sep).map((v) => v.trim());
+    return Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? ""]));
+  });
+}
+
+// ── JSON parser ───────────────────────────────────────────────────────────────
+function parseJSON(text) {
+  try {
+    const data = JSON.parse(text);
+    return Array.isArray(data) ? data : data.data ?? data.rows ?? data.records ?? [];
+  } catch { return []; }
+}
+
+// ── Master file parser ────────────────────────────────────────────────────────
+export async function parseDatasetFile(file) {
+  const name = file.name.toLowerCase();
+  const text = await file.text().catch(() => "");
+
+  let rows = [];
+
+  if (name.endsWith(".csv"))                          rows = parseCSV(text);
+  else if (name.endsWith(".tsv"))                     rows = parseTSV(text);
+  else if (name.endsWith(".json"))                    rows = parseJSON(text);
+  else if (name.endsWith(".txt") || name.endsWith(".log")) rows = parseCSV(text).length > 1 ? parseCSV(text) : parseTSV(text);
+  else if (name.endsWith(".xlsx") || name.endsWith(".xls") || name.endsWith(".ods")) {
+    // Excel/ODS — try to parse as CSV fallback (binary won't work, but we won't crash)
+    rows = parseCSV(text);
+  }
+  else {
+    // PDF, DOCX, etc — extract any numbers from plain text lines
+    const numLines = text.split(/\r?\n/).filter((l) => /[\d.]+/.test(l));
+    rows = numLines.map((l) => {
+      const nums = l.match(/[\d.]+/g) ?? [];
+      return { snr: nums[0], packetLoss: nums[1], packetRate: nums[2] };
+    });
+  }
+
+  // Extract valid signal rows
+  const points = rows
+    .map((r, i) => ({ ...extractRow(r), idx: i }))
+    .filter((r) => r.snr !== null || r.packetLoss !== null || r.packetRate !== null)
+    .map((r, i) => ({
+      time:       `T+${i}`,
+      snr:        r.snr        ?? 25,
+      packetLoss: r.packetLoss ?? 5,
+      packetRate: r.packetRate ?? 300,
+    }));
+
+  return points;
+}
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 
@@ -44,8 +127,9 @@ const useSignalStore = create((set, get) => ({
   packetLoss:  5,
   packetRate:  0,
   lastUpdated: "--",
-  source:      "fallback",  // "live" | "fallback"
-  history:     [],          // Array<{ time, snr, packetLoss }>, max MAX_HISTORY
+  source:      "fallback",  // "live" | "fallback" | "dataset"
+  datasetName: null,        // filename when dataset is loaded
+  history:     [],
 
   // ── setSignalData ──────────────────────────────────────────────────────────
   setSignalData: (raw) => {
@@ -82,6 +166,54 @@ const useSignalStore = create((set, get) => ({
 
     set(next);
     console.log(`[SignalStore] live  snr=${next.snr ?? "--"}  loss=${next.packetLoss ?? "--"}`);
+  },
+
+  // ── loadDataset ────────────────────────────────────────────────────────────
+  loadDataset: (points, filename) => {
+    if (!points || points.length === 0) return false;
+
+    // Stop fallback + any previous dataset playback
+    useSignalStore.getState().stopFallback();
+    if (_datasetTimer) { clearInterval(_datasetTimer); _datasetTimer = null; }
+
+    // Seed history with up to MAX_HISTORY points immediately
+    const initial = points.slice(0, MAX_HISTORY);
+    const last    = initial[initial.length - 1];
+    set({
+      snr:         last.snr,
+      packetLoss:  last.packetLoss,
+      packetRate:  last.packetRate,
+      lastUpdated: last.time,
+      source:      "dataset",
+      datasetName: filename,
+      history:     initial,
+    });
+
+    // Replay remaining rows one per second, then loop
+    let idx = MAX_HISTORY;
+    _datasetTimer = setInterval(() => {
+      const pt = points[idx % points.length];
+      idx++;
+      const s = useSignalStore.getState();
+      set({
+        snr:         pt.snr,
+        packetLoss:  pt.packetLoss,
+        packetRate:  pt.packetRate,
+        lastUpdated: pt.time,
+        history:     [...s.history.slice(-(MAX_HISTORY - 1)), pt],
+      });
+    }, 1_000);
+
+    console.log(`[SignalStore] dataset loaded: ${filename} (${points.length} rows)`);
+    return true;
+  },
+
+  // ── clearDataset ───────────────────────────────────────────────────────────
+  clearDataset: () => {
+    if (_datasetTimer) { clearInterval(_datasetTimer); _datasetTimer = null; }
+    set({ source: "fallback", datasetName: null, history: [] });
+    useSignalStore.getState().startFallback();
+    console.log("[SignalStore] dataset cleared — fallback resumed");
   },
 
   // ── startFallback ──────────────────────────────────────────────────────────

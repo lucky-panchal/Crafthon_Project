@@ -193,9 +193,15 @@ export default function ControlPanel() {
     if (now - debounceRef.current < DEBOUNCE_MS) return;
     debounceRef.current = now;
 
+    // NORMAL: always execute immediately — cancel any pending confirm first
+    if (storeMode === "NORMAL") {
+      setPendingMode(null);
+      executeMode("NORMAL");
+      return;
+    }
+
     const btn = BUTTONS.find((b) => b.storeMode === storeMode);
-    // NORMAL always executes instantly — no confirmation needed
-    if (storeMode === "NORMAL" || !btn?.confirm || mode === storeMode) {
+    if (!btn?.confirm || mode === storeMode) {
       executeMode(storeMode);
     } else {
       setPendingMode(storeMode);
@@ -205,7 +211,8 @@ export default function ControlPanel() {
   // ── Execute mode change ───────────────────────────────────────────────────
   const executeMode = useCallback(async (storeMode) => {
     setPendingMode(null);
-    if (loading) return;
+    // NORMAL can interrupt a loading request — skip the loading gate
+    if (loading && storeMode !== "NORMAL") return;
 
     const ok = await callSetMode(storeMode, pushAlert);
     const finalMode = useSimulationStore.getState().mode;
@@ -282,7 +289,18 @@ export default function ControlPanel() {
         </div>
       ) : null}
 
-      {/* ── Buttons ── */}
+      {/* ── STOP ATTACK — instant reset, only shown during active attack ── */}
+      {(mode === "JAMMING" || mode === "SPOOFING") && (
+        <button
+          onClick={() => handleClick("NORMAL")}
+          className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl border border-green-500/60 bg-green-500/15 text-green-300 text-sm font-bold tracking-wide hover:bg-green-500/25 hover:border-green-400 hover:shadow-[0_0_16px_#22c55e50] active:scale-[0.97] transition-all duration-150"
+        >
+          <span className="text-base">⏹</span>
+          Stop Attack — Return to Normal
+        </button>
+      )}
+
+      {/* ── Buttons ── */}}
       <div className="flex flex-col gap-2.5">
         {BUTTONS.map((cfg) => (
           <SimButton
@@ -292,7 +310,7 @@ export default function ControlPanel() {
             tooltip={cfg.tooltip}
             isActive={mode === cfg.storeMode}
             isLoading={loading && mode === cfg.storeMode}
-            disabled={loading || pendingMode !== null}
+            disabled={cfg.storeMode !== "NORMAL" && (loading || pendingMode !== null)}
             onClick={() => handleClick(cfg.storeMode)}
             cfg={cfg}
           />
