@@ -14,10 +14,13 @@ router = APIRouter()
 # GET /api/simulate — returns attacked signal data with attack label and risk score
 @router.get("/simulate", response_model=SimulateResponse)
 def simulate():
+    mode = get_mode()
+    attack = resolve_attack()
+    risk = 80 if attack else 0
     return SimulateResponse(
         data=generate_with_attack(),
-        attack=resolve_attack(),
-        risk=0,
+        attack=attack,
+        risk=risk,
     )
 
 
