@@ -1,13 +1,18 @@
 # Pydantic models for request/response validation.
-# Extend these as new endpoints are added.
+# SimulateResponse is the locked contract — frontend depends on this exact shape.
 
 from pydantic import BaseModel
+from typing import Optional
 
 
-class SimulationRequest(BaseModel):
-    scenario: str
+class SignalData(BaseModel):
+    packet_rate: int
+    snr: float
+    packet_loss: float
+    timestamp: float
 
 
-class SimulationResponse(BaseModel):
-    status: str
-    result: dict
+class SimulateResponse(BaseModel):
+    data: SignalData
+    attack: Optional[str]
+    risk: int

@@ -1,17 +1,19 @@
 # Route handler for simulation endpoints.
-# Calls the simulator service and returns live signal data.
+# Combines base signal data + attack resolution into a standardized response.
 
 from fastapi import APIRouter
 from app.services.simulator import generate_data
+from app.services.attack_engine import resolve_attack
+from app.models.schema import SimulateResponse
 
 router = APIRouter()
 
 
-# GET /api/simulate — returns a fresh snapshot of simulated signal metrics
-@router.get("/simulate")
+# GET /api/simulate — returns live signal snapshot with attack and risk fields
+@router.get("/simulate", response_model=SimulateResponse)
 def simulate():
-    return {
-        "data": generate_data(),
-        "attack": None,
-        "risk": 0,
-    }
+    return SimulateResponse(
+        data=generate_data(),
+        attack=resolve_attack(),
+        risk=0,
+    )
