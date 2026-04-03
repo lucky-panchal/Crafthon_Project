@@ -1,2 +1,6 @@
 fastapi
-uvicorn
+uvicorn[standard]
+websockets
+numpy
+scikit-learn
+joblib

@@ -9,3 +9,164 @@ body {
 .risk-bar {
   width: var(--risk-width);
 }
+
+/* ── Alert card entrance blink ───────────────────────────────────────────── */
+@keyframes alertBlink {
+  0%   { opacity: 1; }
+  15%  { opacity: 0.25; }
+  30%  { opacity: 1; }
+  45%  { opacity: 0.25; }
+  60%  { opacity: 1; }
+  100% { opacity: 1; }
+}
+.alert-blink { animation: alertBlink 0.7s ease-out; }
+
+/* ── Slide in from top ───────────────────────────────────────────────────── */
+@keyframes slideInDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.slide-in-down { animation: slideInDown 0.25s ease-out both; }
+
+/* ── Fade in ─────────────────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.fade-in { animation: fadeIn 0.3s ease-out both; }
+
+/* ── Panel entrance — fade + rise ────────────────────────────────────────── */
+@keyframes panelEnter {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+.panel-enter { animation: panelEnter 0.35s cubic-bezier(0.4, 0, 0.2, 1) both; }
+
+/* ── Slide in from left ──────────────────────────────────────────────────── */
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.slide-in-left { animation: slideInLeft 0.2s ease-out both; }
+
+/* ── Shimmer ─────────────────────────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, #1E2A3A 25%, #243040 50%, #1E2A3A 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.6s infinite linear;
+}
+
+/* ── Confidence bar ──────────────────────────────────────────────────────── */
+.confidence-bar { transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1), background 0.4s ease, box-shadow 0.4s ease; }
+
+/* ── Risk gauge pulse ring (HIGH only) ───────────────────────────────────── */
+@keyframes riskPulse {
+  0%   { r: 60; opacity: 0.35; }
+  50%  { r: 66; opacity: 0.1;  }
+  100% { r: 60; opacity: 0.35; }
+}
+.risk-pulse-ring { animation: riskPulse 1.4s ease-in-out infinite; }
+
+/* ── Scrollbars ──────────────────────────────────────────────────────────── */
+.alert-scroll::-webkit-scrollbar,
+.log-scroll::-webkit-scrollbar       { width: 3px; }
+.alert-scroll::-webkit-scrollbar-track,
+.log-scroll::-webkit-scrollbar-track { background: transparent; }
+.alert-scroll::-webkit-scrollbar-thumb,
+.log-scroll::-webkit-scrollbar-thumb { background: #1E2A3A; border-radius: 2px; }
+
+/* ── Button press ────────────────────────────────────────────────────────── */
+.btn-press:active { transform: scale(0.96); }
+
+/* ── Mode overlay — full-screen fixed layer, pointer-events: none ────────── */
+
+/* JAMMING — slow red radial pulse from edges */
+@keyframes jammingPulse {
+  0%   { opacity: 0.6; box-shadow: inset 0 0 80px  20px #ef444418; }
+  50%  { opacity: 1;   box-shadow: inset 0 0 160px 60px #ef444430; }
+  100% { opacity: 0.6; box-shadow: inset 0 0 80px  20px #ef444418; }
+}
+.overlay-jamming {
+  background: radial-gradient(ellipse at center, transparent 35%, #ef444410 100%);
+  animation: jammingPulse 2.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* SPOOFING — fast amber flicker */
+@keyframes spoofingFlicker {
+  0%   { opacity: 0.9; }
+  7%   { opacity: 0.2; }
+  11%  { opacity: 0.9; }
+  19%  { opacity: 0.5; }
+  23%  { opacity: 0.9; }
+  61%  { opacity: 0.9; }
+  67%  { opacity: 0.15; }
+  71%  { opacity: 0.9; }
+  100% { opacity: 0.9; }
+}
+.overlay-spoofing {
+  background: radial-gradient(ellipse at center, transparent 35%, #f59e0b0d 100%);
+  animation: spoofingFlicker 1.7s linear infinite;
+  pointer-events: none;
+}
+
+/* ── Status badge blink (JAMMING = red, SPOOFING = amber) ────────────────── */
+@keyframes badgeBlink {
+  0%, 49% { opacity: 1; }
+  50%, 99% { opacity: 0.3; }
+}
+.badge-blink { animation: badgeBlink 0.85s step-end infinite; }
+
+/* ── Chart card glow border per mode ─────────────────────────────────────── */
+.chart-jamming {
+  border-color: #ef444445 !important;
+  box-shadow: 0 0 28px #ef444418, inset 0 0 14px #ef44440a;
+  transition: border-color 0.5s ease, box-shadow 0.5s ease;
+}
+.chart-spoofing {
+  border-color: #f59e0b45 !important;
+  box-shadow: 0 0 28px #f59e0b18, inset 0 0 14px #f59e0b0a;
+  transition: border-color 0.5s ease, box-shadow 0.5s ease;
+}
+.chart-normal {
+  border-color: #1E2A3A !important;
+  box-shadow: none;
+  transition: border-color 0.5s ease, box-shadow 0.5s ease;
+}
+
+/* ── Toast notification ──────────────────────────────────────────────────── */
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+@keyframes toastOut {
+  from { opacity: 1; transform: translateY(0)   scale(1);    }
+  to   { opacity: 0; transform: translateY(8px) scale(0.96); }
+}
+.toast-in  { animation: toastIn  0.22s ease-out both; }
+.toast-out { animation: toastOut 0.2s  ease-in  both; }
+
+/* ── Tooltip ─────────────────────────────────────────────────────────────── */
+.has-tooltip { position: relative; }
+.has-tooltip .tooltip-text {
+  visibility: hidden; opacity: 0;
+  position: absolute; bottom: calc(100% + 6px); left: 50%;
+  transform: translateX(-50%);
+  background: #0B0F1A; border: 1px solid #1E2A3A; color: #9ca3af;
+  font-size: 10px; white-space: nowrap; padding: 4px 8px;
+  border-radius: 6px; pointer-events: none;
+  transition: opacity 0.15s ease; z-index: 50;
+}
+.has-tooltip:hover .tooltip-text { visibility: visible; opacity: 1; }
+/* Panel-level tooltip — anchors below top-left of wrapper */
+.has-tooltip.panel-tip .tooltip-text {
+  bottom: auto; top: calc(100% + 6px);
+  left: 0; transform: none;
+}
+
+/* ── Mode log row highlight ──────────────────────────────────────────────── */
+.log-row-mode { background: rgba(168, 85, 247, 0.04); }
