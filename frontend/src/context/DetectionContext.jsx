@@ -59,19 +59,7 @@ export function useDetection() {
     throw new Error("useDetection must be used inside <DetectionProvider>");
   }
 
-  // Single shallow subscription — only re-renders when one of these values changes
-  const {
-    latestDetection,
-    alerts,
-    logs,
-    totalAlerts,
-    activeMode,
-    pushFrame,
-    pushAlert,
-    pushModeLog,
-    clearAlerts,
-    setActiveMode,
-  } = useAlertStore(
+  const store = useAlertStore(
     (s) => ({
       latestDetection: s.latestDetection,
       alerts:          s.alerts,
@@ -87,21 +75,8 @@ export function useDetection() {
     shallow,
   );
 
-  // connStatus — AlertPanel header dot reads this
-  const connStatus = useConnectionStore((s) => s.status);
+  const connStatus    = useConnectionStore((s) => s.status);
+  const setConnStatus = useConnectionStore((s) => s.setStatus);
 
-  return {
-    latestDetection,
-    alerts,
-    logs,
-    totalAlerts,
-    activeMode,
-    connStatus,
-    pushFrame,
-    pushAlert,
-    pushModeLog,
-    clearAlerts,
-    setActiveMode,
-    setConnStatus: useConnectionStore.getState().setStatus, // stable action ref
-  };
+  return { ...store, connStatus, setConnStatus };
 }
