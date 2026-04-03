@@ -40,23 +40,20 @@ export default function Dashboard() {
         </div>
       ) : loading ? (
         <div className="grid grid-cols-12 gap-6">
-          <SkeletonCard className="col-span-8" />
+          <SkeletonCard className="col-span-12" />
           <SkeletonCard className="col-span-4" />
           <SkeletonCard className="col-span-4" />
-          <SkeletonCard className="col-span-8" />
+          <SkeletonCard className="col-span-4" />
         </div>
       ) : (
         <div className="grid grid-cols-12 gap-6">
 
-          {/* Traffic Chart */}
-          <div className="col-span-8 bg-gray-800 border border-gray-700 rounded-xl p-5 shadow-lg">
+          {/* Traffic Chart — full width, large */}
+          <div className="col-span-12 bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
             <TrafficChart data={data} />
           </div>
 
-          {/* Control Panel */}
-          <div className="col-span-4 bg-gray-800 border border-gray-700 rounded-xl p-5 shadow-lg">
-            <ControlPanel onInject={injectAttack} />
-          </div>
+          {/* Bottom row — 3 equal blocks */}
 
           {/* Risk Indicator */}
           <div className="col-span-4 bg-gray-800 border border-gray-700 rounded-xl p-5 shadow-lg">
@@ -64,8 +61,13 @@ export default function Dashboard() {
           </div>
 
           {/* Alert Panel */}
-          <div className="col-span-8 bg-gray-800 border border-gray-700 rounded-xl p-5 shadow-lg">
+          <div className="col-span-4 bg-gray-800 border border-gray-700 rounded-xl p-5 shadow-lg">
             <AlertPanel alerts={alerts} />
+          </div>
+
+          {/* Control Panel — attack injection at bottom */}
+          <div className="col-span-4 bg-gray-800 border border-gray-700 rounded-xl p-5 shadow-lg">
+            <ControlPanel onInject={injectAttack} />
           </div>
 
         </div>
