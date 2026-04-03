@@ -4,7 +4,8 @@
 export default function ChartCard({ title, badge, children, className = "" }) {
   return (
     <div
-      className={`rounded-2xl border border-[#1E2A3A] bg-[#121826] shadow-xl shadow-black/40 p-6 flex flex-col gap-4 ${className}`}
+      className={`rounded-2xl border border-[#2a3a1a]/50 shadow-xl shadow-black/40 p-6 flex flex-col gap-4 ${className}`}
+      style={{ background: "rgba(10,18,12,0.55)", backdropFilter: "blur(12px)" }}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">

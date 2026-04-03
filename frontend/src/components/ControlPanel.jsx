@@ -190,14 +190,15 @@ export default function ControlPanel() {
   // ── Click handler — debounced, confirmation-aware ─────────────────────────
   const handleClick = useCallback((storeMode) => {
     const now = Date.now();
-    if (now - debounceRef.current < DEBOUNCE_MS) return; // debounce guard
+    if (now - debounceRef.current < DEBOUNCE_MS) return;
     debounceRef.current = now;
 
     const btn = BUTTONS.find((b) => b.storeMode === storeMode);
-    if (btn?.confirm && mode !== storeMode) {
-      setPendingMode(storeMode); // show confirmation bar
-    } else {
+    // NORMAL always executes instantly — no confirmation needed
+    if (storeMode === "NORMAL" || !btn?.confirm || mode === storeMode) {
       executeMode(storeMode);
+    } else {
+      setPendingMode(storeMode);
     }
   }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -239,7 +240,7 @@ export default function ControlPanel() {
   [lastSynced]);
 
   return (
-    <div className="rounded-2xl border border-[#1E2A3A] bg-[#121826] shadow-xl shadow-black/40 p-6 flex flex-col gap-5">
+    <div className="glass rounded-2xl border shadow-xl shadow-black/40 p-6 flex flex-col gap-5">
 
       {/* ── Header ── */}
       <div className="flex items-center gap-2.5">

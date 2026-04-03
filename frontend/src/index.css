@@ -4,10 +4,10 @@
 
 /* ── Design tokens ───────────────────────────────────────────────────────────── */
 :root {
-  --bg-base:      #080C14;
-  --bg-surface:   #0D1220;
-  --bg-card:      #111827;
-  --bg-card-hover:#131f30;
+  --bg-base:      #060C0E;
+  --bg-surface:   #0A1210;
+  --bg-card:      #0F1A14;
+  --bg-card-hover:#121f18;
   --border:       #1a2535;
   --border-hover: #243040;
   --text-primary: #f1f5f9;
@@ -22,7 +22,7 @@
 }
 
 /* ── Base ────────────────────────────────────────────────────────────────────── */
-html { scroll-behavior: auto; } /* Lenis handles smooth scroll */
+html { scroll-behavior: auto; }
 
 body {
   background: var(--bg-base);
@@ -31,6 +31,7 @@ body {
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
 }
+
 
 /* ── Scrollbars ──────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar              { width: 4px; height: 4px; }
@@ -43,12 +44,26 @@ body {
 
 /* ── Card base ───────────────────────────────────────────────────────────────── */
 .card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: rgba(15, 26, 20, 0.65);
+  border: 1px solid rgba(74, 94, 42, 0.3);
   border-radius: 1rem;
+  backdrop-filter: blur(1px);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
-.card:hover { border-color: var(--border-hover); }
+.card:hover { border-color: rgba(85, 107, 47, 0.5); }
+
+/* -- Panel glass morphism --------------------------------------------------- */
+.glass {
+  background: rgba(10, 18, 12, 0.55) !important;
+  backdrop-filter: blur(12px) !important;
+  border-color: rgba(74, 94, 42, 0.35) !important;
+}
+
+/* -- Panel transparency - lets camo show through ----------------------------- */
+.panel-glass {
+  background: rgba(18, 24, 38, 0.78) !important;
+  backdrop-filter: blur(2px);
+}
 
 /* ── Risk bar ────────────────────────────────────────────────────────────────── */
 .risk-bar { width: var(--risk-width); }
@@ -233,8 +248,39 @@ body {
 .glow-amber  { box-shadow: 0 0 12px #f59e0b40; }
 .glow-purple { box-shadow: 0 0 12px #a855f740; }
 
+/* ── Siren pulse ──────────────────────────────────────────────────────────────── */
+@keyframes sirenPulse {
+  0%   { opacity: 0.4; box-shadow: inset 0 0 120px 40px #ef444418; }
+  50%  { opacity: 1;   box-shadow: inset 0 0 200px 80px #ef444435; }
+  100% { opacity: 0.4; box-shadow: inset 0 0 120px 40px #ef444418; }
+}
+
 /* ── Responsive grid helpers ─────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
   .main-grid { grid-template-columns: 1fr; }
+}
+
+/* -- Shake effect ------------------------------------------------------------ */
+@keyframes shake {
+  0%   { transform: translateX(0);    }
+  20%  { transform: translateX(-3px); }
+  40%  { transform: translateX(3px);  }
+  60%  { transform: translateX(-3px); }
+  80%  { transform: translateX(3px);  }
+  100% { transform: translateX(0);    }
+}
+.shake { animation: shake 0.4s ease-in-out infinite; }
+
+/* -- Banner scroll ----------------------------------------------------------- */
+@keyframes bannerScroll {
+  0%   { background-position: 0% 0%;   }
+  100% { background-position: 200% 0%; }
+}
+
+/* -- Siren pulse ------------------------------------------------------------- */
+@keyframes sirenPulse {
+  0%   { opacity: 0.4; }
+  50%  { opacity: 1;   }
+  100% { opacity: 0.4; }
 }

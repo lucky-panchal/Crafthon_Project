@@ -138,7 +138,7 @@ export default function AlertPanel() {
   const wsError = connStatus === "error" || connStatus === "disconnected";
 
   return (
-    <div className="rounded-2xl border border-[#1E2A3A] bg-[#121826] shadow-xl shadow-black/40 p-5 flex flex-col gap-3 h-full">
+    <div className="glass rounded-2xl border border-[#1E2A3A] shadow-xl shadow-black/40 p-5 flex flex-col gap-3 h-full max-h-[520px]">
 
       {/* ── Header ── */}
       <div className="flex items-center justify-between flex-wrap gap-2">

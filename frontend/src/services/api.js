@@ -22,7 +22,7 @@
  */
 
 const BASE_URL     = "http://localhost:8000";
-const TIMEOUT_MS   = 5_000;
+const TIMEOUT_MS   = 1_500;
 
 // ── Typed error ───────────────────────────────────────────────────────────────
 

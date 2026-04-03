@@ -137,7 +137,7 @@ export default function LogsPanel() {
   }, [logs]);
 
   return (
-    <div className="rounded-2xl border border-[#1E2A3A] bg-[#121826] shadow-xl shadow-black/40 p-5 flex flex-col gap-3">
+    <div className="glass rounded-2xl border shadow-xl shadow-black/40 p-5 flex flex-col gap-3">
 
       {/* Header */}
       <div className="flex items-center justify-between">

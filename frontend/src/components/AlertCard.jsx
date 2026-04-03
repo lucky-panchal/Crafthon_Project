@@ -133,13 +133,15 @@ const AlertCard = memo(function AlertCard({
   isNew      = false,
   className  = "",
 }) {
-  const cfg       = RISK_CFG[risk] ?? RISK_CFG.LOW;
+  // Force HIGH styling for jamming/spoofing attack types
+  const effectiveRisk = (type === "JAMMING" || type === "SPOOFING") ? "HIGH" : risk;
+  const cfg       = RISK_CFG[effectiveRisk] ?? RISK_CFG.LOW;
   const icon      = TYPE_ICON[type] ?? "⚠️";
   const baseLabel = typeToLabel(type);
   const conf      = Math.max(0, Math.min(100, Number(confidence) || 0));
   const timeShort = timestamp ? formatTime(timestamp) : "--";
   const timeFull  = timestamp ? formatFull(timestamp) : "--";
-  const isHigh    = risk === "HIGH";
+  const isHigh    = effectiveRisk === "HIGH";
   const escalated = count >= 3;  // 3+ occurrences = escalated state
 
   // Title: "Jamming Detected" or "Jamming Detected (x3)"

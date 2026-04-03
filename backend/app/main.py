@@ -1,6 +1,3 @@
-# Entry point for the DefComm Shield backend.
-# Initializes the FastAPI app and registers all routers.
-
 import logging
 import sys
 from contextlib import asynccontextmanager
@@ -9,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes import simulate, telemetry, detection
+from app.routes.auth import router as auth_router
 
 logging.basicConfig(
     stream=sys.stdout,
@@ -20,42 +18,38 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # ── Startup: warm up the ML model before the first request hits ──────────
-    # get_model() loads from disk if isolation_forest.joblib exists,
-    # otherwise trains from scratch (~1 s).  Either way the model is
-    # cached in-process so every subsequent call is instant.
     logger.info("Warming up ML model...")
     from ml.model import get_model
     get_model()
     logger.info("ML model ready.")
     yield
-    # ── Shutdown (nothing to clean up) ───────────────────────────────────────
 
 
-app = FastAPI(title="DefComm Shield Backend", lifespan=lifespan)
+app = FastAPI(title="RAKSHA Backend", lifespan=lifespan)
 
-# Allow all origins during hackathon — tighten after demo
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# Health check — confirms the server is up
 @app.get("/")
 def root():
     return {"message": "Backend running"}
 
 
-# Mounted twice — with and without /api prefix, same handlers, no duplication
+# Auth — JWT + Google + GitHub OAuth
+app.include_router(auth_router)
+
+# Simulation endpoints — mounted with and without /api prefix
 app.include_router(simulate.router, prefix="/api")
 app.include_router(simulate.router)
 
-# WebSocket telemetry — no prefix, path is /ws/telemetry
+# WebSocket telemetry
 app.include_router(telemetry.router)
 
-# Hybrid detection — POST /detect  +  WebSocket /ws/detection
+# Detection WebSocket + POST /detect
 app.include_router(detection.router)
