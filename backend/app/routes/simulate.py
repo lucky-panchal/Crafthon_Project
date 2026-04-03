@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+from app.services.simulator import generate_data
 
 router = APIRouter()
 
@@ -6,9 +7,7 @@ router = APIRouter()
 @router.get("/simulate")
 def simulate():
     return {
-        "packet_rate": 80,
-        "snr": 25,
-        "packet_loss": 0.02,
+        "data": generate_data(),
         "attack": None,
-        "risk": 10,
+        "risk": 0,
     }
