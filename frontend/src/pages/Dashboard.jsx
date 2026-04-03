@@ -33,15 +33,18 @@ import useSimulationStore     from "../store/useSimulationStore";
 import useConnectionStore     from "../store/useConnectionStore";
 import { ToastProvider }      from "../components/Toast";
 
-import AlertPanel      from "../components/AlertPanel";
-import ControlPanel    from "../components/ControlPanel";
-import RiskScoreCard   from "../components/RiskScoreCard";
-import LogsPanel       from "../components/LogsPanel";
-import ConfidenceMeter from "../components/ConfidenceMeter";
-import DetectionBanner from "../components/DetectionBanner";
-import StatusBadge     from "../components/StatusBadge";
-import LiveGraph       from "../components/LiveGraph";
-import SystemStatus    from "../components/SystemStatus";
+import AlertPanel           from "../components/AlertPanel";
+import ControlPanel         from "../components/ControlPanel";
+import RiskScoreCard        from "../components/RiskScoreCard";
+import LogsPanel            from "../components/LogsPanel";
+import LogPanel             from "../components/LogPanel";
+import ConfidenceMeter      from "../components/ConfidenceMeter";
+import DetectionBanner      from "../components/DetectionBanner";
+import StatusBadge          from "../components/StatusBadge";
+import LiveGraph            from "../components/LiveGraph";
+import SystemStatus         from "../components/SystemStatus";
+import SignalIntegrityPanel from "../components/SignalIntegrityPanel";
+import SignalGraph          from "../components/SignalGraph";
 
 // ── Throttle constant ─────────────────────────────────────────────────────────
 const RENDER_THROTTLE_MS = 1_000;
@@ -319,22 +322,24 @@ function DashboardInner() {
                 <ConfidenceMeter />
               </div>
 
-              <div className="col-span-12 md:col-span-3 flex flex-col gap-4">
-                {miniStats.map(({ label, value, unit, color }, i) => (
-                  <MiniStat
-                    key={label}
-                    label={label}
-                    value={value}
-                    unit={unit}
-                    color={color}
-                  />
-                ))}
+              <div className="col-span-12 md:col-span-3 panel-enter" style={{ animationDelay: "130ms" }}>
+                <SignalIntegrityPanel />
               </div>
+            </div>
+
+            {/* Signal Graph — full width */}
+            <div className="col-span-12 panel-enter" style={{ animationDelay: "145ms" }}>
+              <SignalGraph />
             </div>
 
             {/* Logs — full width */}
             <div className="col-span-12 panel-enter" style={{ animationDelay: "140ms" }}>
               <LogsPanel />
+            </div>
+
+            {/* Audit Trail — full width */}
+            <div className="col-span-12 panel-enter" style={{ animationDelay: "155ms" }}>
+              <LogPanel />
             </div>
 
           </div>

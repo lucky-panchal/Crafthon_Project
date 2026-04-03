@@ -1,61 +1,67 @@
+/**
+ * src/hooks/useWebSocket.js
+ *
+ * Connects to /ws/telemetry.
+ * On every frame:
+ *   - Maintains rolling 20-point history for the chart
+ *   - Calls useSignalStore.setSignalData() with camelCase-normalised fields
+ *
+ * Fallback:
+ *   - On disconnect / error → useSignalStore.startFallback()
+ *   - On connect / first valid frame → useSignalStore.stopFallback()
+ */
+
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createTelemetrySocket } from "../services/socket";
+import useSignalStore from "../store/useSignalStore";
 
-const MAX_POINTS   = 20;
-const BASE_DELAY   = 1_000;   // ms — first retry wait
-const MAX_DELAY    = 30_000;  // ms — cap backoff at 30 s
-const MAX_RETRIES  = 10;      // give up after this many consecutive failures
+const MAX_POINTS  = 20;
+const BASE_DELAY  = 1_000;
+const MAX_DELAY   = 30_000;
+const MAX_RETRIES = 10;
 
-/**
- * @param {number} snr
- * @returns {"normal" | "warning" | "critical"}
- */
 export function deriveStatus(snr) {
   if (snr < 15) return "critical";
   if (snr < 20) return "warning";
   return "normal";
 }
 
-/**
- * Connects to the backend WebSocket telemetry stream.
- * Automatically reconnects with exponential backoff on disconnect/error.
- * Clears all timers and closes the socket on unmount — no memory leaks.
- *
- * @returns {{
- *   history:     Array<{ time: string, packetRate: number, snr: number, packetLoss: number }>,
- *   latest:      { time: string, packetRate: number, snr: number, packetLoss: number } | null,
- *   status:      "normal" | "warning" | "critical",
- *   connStatus:  "connecting" | "connected" | "disconnected" | "error",
- *   lastUpdated: string,
- * }}
- */
 export function useWebSocket() {
-  // ── Refs — mutations never trigger re-renders ─────────────────────────────
-  const bufferRef   = useRef([]);          // rolling data buffer
-  const socketRef   = useRef(null);        // active WebSocket instance
-  const retryRef    = useRef(0);           // consecutive failure count
-  const retryTimer  = useRef(null);        // setTimeout handle for reconnect
-  const unmounted   = useRef(false);       // guard against post-unmount setState
+  const bufferRef  = useRef([]);
+  const socketRef  = useRef(null);
+  const retryRef   = useRef(0);
+  const retryTimer = useRef(null);
+  const unmounted  = useRef(false);
 
-  // ── State — only what the UI actually needs ───────────────────────────────
   const [history,    setHistory]    = useState([]);
   const [connStatus, setConnStatus] = useState("connecting");
 
-  // ── Message handler — stable ref, never recreated ────────────────────────
+  // ── Normalise raw frame → camelCase + chart point ─────────────────────────
   const handleMessage = useCallback((event) => {
     try {
-      const point = JSON.parse(event.data);
-      bufferRef.current = [
-        ...bufferRef.current.slice(-(MAX_POINTS - 1)),
-        point,
-      ];
+      const raw = JSON.parse(event.data);
+
+      // Normalise snake_case → camelCase for the store
+      const point = {
+        time:       raw.time       ?? new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+        snr:        raw.snr,
+        packetRate: raw.packetRate ?? raw.packet_rate,
+        packetLoss: raw.packetLoss ?? raw.packet_loss,
+      };
+
+      // Chart history
+      bufferRef.current = [...bufferRef.current.slice(-(MAX_POINTS - 1)), point];
       if (!unmounted.current) setHistory([...bufferRef.current]);
+
+      // Signal store — also stops fallback on first valid frame
+      useSignalStore.getState().setSignalData(point);
+
     } catch {
       // Malformed frame — skip silently
     }
   }, []);
 
-  // ── Connect — creates socket, wires all handlers ──────────────────────────
+  // ── Connect ───────────────────────────────────────────────────────────────
   const connect = useCallback(() => {
     if (unmounted.current) return;
 
@@ -65,8 +71,10 @@ export function useWebSocket() {
 
     ws.onopen = () => {
       if (unmounted.current) { ws.close(); return; }
-      retryRef.current = 0;           // reset backoff on successful connect
+      retryRef.current = 0;
       setConnStatus("connected");
+      // Stop fallback — real data is flowing
+      useSignalStore.getState().stopFallback();
     };
 
     ws.onmessage = handleMessage;
@@ -74,26 +82,28 @@ export function useWebSocket() {
     ws.onerror = () => {
       if (unmounted.current) return;
       setConnStatus("error");
+      // Start fallback so the panel never goes stale
+      useSignalStore.getState().startFallback();
     };
 
     ws.onclose = () => {
       if (unmounted.current) return;
       setConnStatus("disconnected");
+      // Start fallback while reconnecting
+      useSignalStore.getState().startFallback();
       scheduleReconnect();
     };
   }, [handleMessage]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Reconnect scheduler — exponential backoff ─────────────────────────────
+  // ── Reconnect scheduler ───────────────────────────────────────────────────
   const scheduleReconnect = useCallback(() => {
     if (unmounted.current) return;
     if (retryRef.current >= MAX_RETRIES) {
       setConnStatus("error");
       return;
     }
-
     const delay = Math.min(BASE_DELAY * 2 ** retryRef.current, MAX_DELAY);
     retryRef.current += 1;
-
     retryTimer.current = setTimeout(() => {
       if (!unmounted.current) connect();
     }, delay);
@@ -102,17 +112,19 @@ export function useWebSocket() {
   // ── Lifecycle ─────────────────────────────────────────────────────────────
   useEffect(() => {
     unmounted.current = false;
+    // Start fallback immediately — stops automatically on first WS frame
+    useSignalStore.getState().startFallback();
     connect();
 
     return () => {
       unmounted.current = true;
       clearTimeout(retryTimer.current);
       socketRef.current?.close();
+      useSignalStore.getState().stopFallback();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  // ^ intentionally empty — connect/scheduleReconnect are stable callbacks
 
-  // ── Derived values — memoised so downstream components don't re-render ────
+  // ── Derived values ────────────────────────────────────────────────────────
   const latest = useMemo(
     () => history[history.length - 1] ?? null,
     [history],

@@ -19,6 +19,7 @@
 import { useState, useCallback, useRef, useMemo } from "react";
 import useSimulationStore, { STORE_TO_API } from "../store/useSimulationStore";
 import useConnectionStore  from "../store/useConnectionStore";
+import useLogStore         from "../store/useLogStore";
 import { useDetection }    from "../context/DetectionContext";
 import { useToast }        from "./Toast";
 
@@ -74,6 +75,14 @@ const WS_DOT = {
   connecting:   { dot: "bg-yellow-400 animate-ping", text: "text-yellow-400", label: "Connecting…"  },
   disconnected: { dot: "bg-gray-500",                text: "text-gray-400",   label: "Disconnected" },
   error:        { dot: "bg-red-500",                 text: "text-red-400",    label: "WS Error"     },
+};
+
+// ── Audit log config per mode ────────────────────────────────────────────────
+
+const MODE_LOG = {
+  JAMMING:  { type: "ATTACK", title: "Jamming Injected",        description: "User triggered RF jamming simulation"    },
+  SPOOFING: { type: "ATTACK", title: "Spoofing Injected",       description: "User triggered source spoofing simulation" },
+  NORMAL:   { type: "NORMAL", title: "Switched to Normal Mode", description: "Simulation reset to clean baseline"        },
 };
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -206,6 +215,15 @@ export default function ControlPanel() {
       toast.error(`Sync failed — rolled back to ${useSimulationStore.getState().mode}`);
     } else {
       toast.success(`Mode set to ${storeMode}`);
+      // Write to audit log — frontend-generated timestamp
+      const logCfg = MODE_LOG[storeMode];
+      if (logCfg) {
+        useLogStore.getState().addLog({
+          ...logCfg,
+          timestamp: new Date().toISOString(),
+          source:    "user",
+        });
+      }
     }
   }, [loading, callSetMode, pushAlert, setActiveMode, pushModeLog, toast]);
 
