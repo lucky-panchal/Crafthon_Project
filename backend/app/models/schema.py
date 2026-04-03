@@ -10,6 +10,7 @@ class SignalData(BaseModel):
     snr: float
     packet_loss: float
     timestamp: float
+    source_id: Optional[int] = None  # injected during spoofing attack
 
 
 class SimulateResponse(BaseModel):
