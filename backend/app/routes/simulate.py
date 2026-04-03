@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 from app.services.simulator import generate_with_attack
 from app.services.attack_engine import resolve_attack
 from app.services.state import set_mode, get_mode
+from app.services.alerts import get_alerts
 from app.models.schema import SimulateResponse
 
 router = APIRouter()
@@ -39,3 +40,9 @@ def inject_jamming():
 @router.post("/inject/spoofing")
 def inject_spoofing():
     return set_simulation_mode("spoofing")
+
+
+# GET /alerts — returns all in-memory alerts, mounted on both /alerts and /api/alerts
+@router.get("/alerts")
+def alerts():
+    return {"alerts": get_alerts()}
