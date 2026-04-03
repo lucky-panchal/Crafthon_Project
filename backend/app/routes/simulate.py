@@ -3,12 +3,34 @@
 # Router is mounted twice in main.py — with and without /api prefix.
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 from app.services.simulator import generate_with_attack
 from app.services.attack_engine import resolve_attack
 from app.services.state import set_mode, get_mode
 from app.services.alerts import get_alerts
 
 router = APIRouter()
+
+
+# Request body for POST /set-mode
+class ModeRequest(BaseModel):
+    mode: str
+
+
+# POST /set-mode — called by frontend ControlPanel with JSON body {"mode": "jamming"}
+@router.post("/set-mode")
+def set_mode_endpoint(body: ModeRequest):
+    try:
+        set_mode(body.mode.lower())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"mode": get_mode()}
+
+
+# GET /mode — returns current simulation mode
+@router.get("/mode")
+def get_mode_endpoint():
+    return {"mode": get_mode()}
 
 
 # GET /simulate — returns flat signal fields matching frontend SimulationData interface
