@@ -82,11 +82,12 @@ function LogRow({ entry, isNewest }) {
   return (
     <div
       className={[
-        "grid grid-cols-[76px_1fr_40px_56px_48px] gap-x-2 px-2 py-1.5",
-        "border-b border-[#1E2A3A]/50 text-[11px] tabular-nums",
+        "grid gap-x-3 px-3 py-2",
+        "border-b border-[#1a2535]/60 text-[11px] tabular-nums items-center",
         isNewest ? "slide-in-left" : "",
         isModeChange ? "log-row-mode" : entry.status === "ALERT" ? "bg-white/[0.02]" : "",
       ].join(" ")}
+      style={{ gridTemplateColumns: "80px 1fr 48px 60px 52px" }}
     >
       <span className="text-gray-500 truncate">{formatTime(entry.timestamp)}</span>
 
@@ -154,25 +155,29 @@ export default function LogsPanel() {
 
       {/* Table */}
       <div
-        className="log-scroll overflow-y-auto max-h-56"
-        style={{ scrollbarWidth: "thin", scrollbarColor: "#1E2A3A transparent" }}
+        className="log-scroll overflow-y-auto max-h-64"
+        style={{ scrollbarWidth: "thin", scrollbarColor: "#1a2535 transparent" }}
       >
-        {/* Column headers */}
-        <div className="grid grid-cols-[76px_1fr_40px_56px_48px] gap-x-2 px-2 pb-1.5 border-b border-[#1E2A3A] sticky top-0 bg-[#121826] z-10">
-          {["Time", "Type / Mode", "Conf", "Source", "Risk"].map((h) => (
-            <span key={h} className="text-[9px] text-gray-600 uppercase tracking-widest">{h}</span>
-          ))}
-        </div>
-
-        {displayed.length === 0 ? (
-          <div className="flex items-center justify-center py-8 text-gray-600 text-xs">
-            Waiting for data…
+        {/* Min-width wrapper prevents grid collapse on small screens */}
+        <div className="min-w-[480px]">
+          {/* Column headers */}
+          <div className="grid gap-x-3 px-3 pb-2 border-b border-[#1a2535] sticky top-0 bg-[#111827] z-10"
+            style={{ gridTemplateColumns: "80px 1fr 48px 60px 52px" }}>
+            {["Time", "Type / Mode", "Conf", "Source", "Risk"].map((h) => (
+              <span key={h} className="text-[9px] text-slate-600 uppercase tracking-widest font-semibold">{h}</span>
+            ))}
           </div>
-        ) : (
-          displayed.map((entry, idx) => (
-            <LogRow key={entry._id} entry={entry} isNewest={idx === 0} />
-          ))
-        )}
+
+          {displayed.length === 0 ? (
+            <div className="flex items-center justify-center py-8 text-slate-600 text-xs">
+              Waiting for data…
+            </div>
+          ) : (
+            displayed.map((entry, idx) => (
+              <LogRow key={entry._id} entry={entry} isNewest={idx === 0} />
+            ))
+          )}
+        </div>
       </div>
     </div>
   );
