@@ -1,23 +1,27 @@
 /**
  * src/components/AlertPanel.jsx
  *
- * Displays rolling alert history from DetectionContext.
- * Alerts are injected from two sources:
- *   1. Backend WebSocket frames (status === "ALERT")
- *   2. Synthetic alerts from ControlPanel mode changes (JAMMING / SPOOFING)
+ * Production-ready alert panel.
  *
  * Features
  * ────────
- *   - Latest alert on top, max 10
- *   - Auto-scroll to newest on each new alert
- *   - Confidence progress bar per card
- *   - RED cards for HIGH, AMBER for MEDIUM, GREEN for LOW
- *   - Newest card blinks once (CSS .alert-blink)
- *   - Short Web Audio beep on HIGH alerts
+ *   - Title: "Threat Alerts"
+ *   - Filter: ALL / HIGH toggle — memoised, no re-render on unrelated state
+ *   - useMemo for filtered card list — only rebuilds when alerts or filter changes
+ *   - Auto-scroll to top on new alert
+ *   - Web Audio beep on HIGH (opt-in after first user gesture)
+ *   - Confidence tooltip on the bar label
+ *   - WS error / disconnected fallback banner
+ *   - Clear Alerts button
+ *   - Responsive: works at any width (flex-wrap headers, full-width cards)
+ *   - Smooth animations via alert-slide-in + alert-high-pulse (CSS)
  */
 
-import { useEffect, useRef, useCallback, useMemo, memo } from "react";
-import { useDetection } from "../context/DetectionContext";
+import { useEffect, useRef, useMemo, useState, useCallback } from "react";
+import { shallow }        from "zustand/shallow";
+import useAlertStore      from "../store/useAlertStore";
+import useConnectionStore from "../store/useConnectionStore";
+import AlertCard          from "./AlertCard";
 
 // ── Web Audio beep ────────────────────────────────────────────────────────────
 
@@ -31,7 +35,7 @@ function getAudioCtx() {
   return _audioCtx;
 }
 
-function playBeep(frequency = 520, durationMs = 140, volume = 0.18) {
+function playBeep() {
   const ctx = getAudioCtx();
   if (!ctx) return;
   try {
@@ -40,196 +44,146 @@ function playBeep(frequency = 520, durationMs = 140, volume = 0.18) {
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.type            = "sine";
-    osc.frequency.value = frequency;
-    gain.gain.setValueAtTime(volume, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + durationMs / 1000);
+    osc.frequency.value = 520;
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.14);
     osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + durationMs / 1000);
+    osc.stop(ctx.currentTime + 0.14);
   } catch { /* ignore */ }
 }
 
-// ── Risk config ───────────────────────────────────────────────────────────────
+// ── Confidence tooltip ────────────────────────────────────────────────────────
 
-const RISK_CFG = {
-  HIGH: {
-    border: "border-red-500/50",
-    bg:     "bg-red-500/10",
-    icon:   "text-red-300",
-    badge:  "bg-red-500/20 text-red-300 border-red-500/30",
-    bar:    "#ef4444",
-    label:  "HIGH",
-  },
-  MEDIUM: {
-    border: "border-amber-500/50",
-    bg:     "bg-amber-500/10",
-    icon:   "text-amber-300",
-    badge:  "bg-amber-500/20 text-amber-300 border-amber-500/30",
-    bar:    "#f59e0b",
-    label:  "MEDIUM",
-  },
-  LOW: {
-    border: "border-green-500/30",
-    bg:     "bg-green-500/5",
-    icon:   "text-green-400",
-    badge:  "bg-green-500/20 text-green-300 border-green-500/30",
-    bar:    "#22c55e",
-    label:  "LOW",
-  },
-};
-
-const TYPE_ICON = {
-  JAMMING:          "📡",
-  SPOOFING:         "🎭",
-  TRAFFIC_SPIKE:    "📈",
-  TRAFFIC_ANOMALY:  "⚠️",
-  RISK_ESCALATION:  "🔺",
-  NONE:             "✅",
-};
-
-function formatTime(ts) {
-  try { return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }); }
-  catch { return "--"; }
+function ConfidenceTip() {
+  return (
+    <span className="has-tooltip cursor-default">
+      <span className="tooltip-text" style={{ whiteSpace: "normal", maxWidth: 200, textAlign: "center" }}>
+        Confidence = how certain the detection engine is this is a real threat (0–100%)
+      </span>
+      <span className="text-[10px] text-gray-600 border border-gray-700 rounded-full w-3.5 h-3.5 inline-flex items-center justify-center leading-none select-none">
+        ?
+      </span>
+    </span>
+  );
 }
 
-// ── Alert card — memo so unchanged cards never re-render ─────────────────────
+// ── WS status config ──────────────────────────────────────────────────────────
 
-const AlertCard = memo(function AlertCard({ alert, isNewest }) {
-  const cfg        = RISK_CFG[alert.risk] ?? RISK_CFG.LOW;
-  const confidence = alert.confidence ?? 0;
-  const typeLabel  =
-    alert.type === "RISK_ESCALATION"
-      ? "Risk Escalation Detected"
-      : (alert.type?.replace(/_/g, " ") ?? "UNKNOWN");
-
-  // Full ISO string shown on hover; short time shown inline
-  const timeShort = formatTime(alert.timestamp);
-  const timeFull  = alert.timestamp
-    ? new Date(alert.timestamp).toLocaleString()
-    : "--";
-
-  return (
-    <div
-      className={[
-        "flex flex-col gap-2 rounded-xl border px-4 py-3 shadow-lg",
-        "transition-colors duration-300",
-        cfg.border, cfg.bg,
-        isNewest ? "alert-blink" : "",
-      ].join(" ")}
-    >
-      {/* Top row */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-base leading-none shrink-0">{TYPE_ICON[alert.type] ?? "⚠️"}</span>
-          <span className={`font-bold text-sm truncate ${cfg.icon}`}>
-            {typeLabel}
-          </span>
-        </div>
-        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${cfg.badge}`}>
-          {cfg.label}
-        </span>
-      </div>
-
-      {/* Confidence bar */}
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] text-gray-500 shrink-0">
-          Conf: <span className="font-semibold tabular-nums" style={{ color: cfg.bar }}>{confidence}%</span>
-        </span>
-        <div className="flex-1 h-1.5 bg-[#0B0F1A] rounded-full overflow-hidden">
-          <div
-            className="h-full rounded-full confidence-bar"
-            style={{ width: `${confidence}%`, background: cfg.bar }}
-          />
-        </div>
-      </div>
-
-      {/* Reason */}
-      {alert.reason && (
-        <p className="text-xs text-gray-400 leading-relaxed line-clamp-2">{alert.reason}</p>
-      )}
-
-      {/* Footer */}
-      <div className="flex items-center justify-between text-[10px] text-gray-600">
-        <div className="flex items-center gap-3">
-          {alert.telemetry && (
-            <>
-              <span>PR: <span className="text-gray-400">{alert.telemetry.packet_rate}</span></span>
-              <span>SNR: <span className="text-gray-400">{alert.telemetry.snr} dB</span></span>
-            </>
-          )}
-          {alert.source && alert.source !== "none" && (
-            <span className="text-gray-700 capitalize">src: {alert.source}</span>
-          )}
-        </div>
-        {/* Timestamp — short inline, full on hover */}
-        <time
-          dateTime={alert.timestamp}
-          title={timeFull}
-          className="tabular-nums shrink-0 cursor-default"
-        >
-          {timeShort}
-        </time>
-      </div>
-    </div>
-  );
-});
+const CONN_DOT = {
+  connected:    "bg-green-400 animate-pulse",
+  connecting:   "bg-yellow-400 animate-ping",
+  disconnected: "bg-gray-500",
+  error:        "bg-red-500 animate-pulse",
+};
 
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
 export default function AlertPanel() {
-  const { alerts, totalAlerts, connStatus, clearAlerts } = useDetection();
+
+  // ── Store selectors — shallow, one subscription ──────────────────────────
+  const { alerts, totalAlerts, clearAlerts } = useAlertStore(
+    (s) => ({ alerts: s.alerts, totalAlerts: s.totalAlerts, clearAlerts: s.clearAlerts }),
+    shallow,
+  );
+  const connStatus = useConnectionStore((s) => s.status);
+
+  // ── Filter state ──────────────────────────────────────────────────────────
+  const [showHighOnly, setShowHighOnly] = useState(false);
+  const toggleFilter = useCallback(() => setShowHighOnly((v) => !v), []);
+
+  // ── Derived counts — memoised ─────────────────────────────────────────────
+  const highCount = useMemo(
+    () => alerts.filter((a) => a.risk === "HIGH").length,
+    [alerts],
+  );
+
+  // ── Filtered + memoised card list ─────────────────────────────────────────
+  // Only rebuilds when alerts array OR showHighOnly changes.
+  const visibleAlerts = useMemo(
+    () => showHighOnly ? alerts.filter((a) => a.risk === "HIGH") : alerts,
+    [alerts, showHighOnly],
+  );
+
+  const alertCards = useMemo(() =>
+    visibleAlerts.map((alert, idx) => (
+      <AlertCard
+        key={alert.id}
+        type={alert.type}
+        risk={alert.risk}
+        reason={alert.reason}
+        confidence={alert.confidence}
+        timestamp={alert.timestamp}
+        source={alert.source !== "none" ? alert.source : null}
+        count={alert.count ?? 1}
+        isNew={idx === 0 && !showHighOnly}
+      />
+    ))
+  , [visibleAlerts, showHighOnly]);
+
+  // ── Auto-scroll + beep ────────────────────────────────────────────────────
   const scrollRef    = useRef(null);
   const prevCountRef = useRef(0);
 
-  // Auto-scroll to top + beep on every new alert
   useEffect(() => {
     if (alerts.length > prevCountRef.current) {
-      scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      if (!showHighOnly) {
+        scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      }
       if (alerts[0]?.risk === "HIGH") playBeep();
     }
     prevCountRef.current = alerts.length;
-  }, [alerts]);
+  }, [alerts, showHighOnly]);
 
-  // Memoize rendered cards — only rebuilds when alerts array changes
-  const alertCards = useMemo(() =>
-    alerts.map((alert, idx) => (
-      <AlertCard key={alert._id} alert={alert} isNewest={idx === 0} />
-    ))
-  , [alerts]);
-
-  // Counts for header badges
-  const highCount = useMemo(() =>
-    alerts.filter((a) => a.risk === "HIGH").length
-  , [alerts]);
-
-  const connDot =
-    connStatus === "connected"    ? "bg-green-400 animate-pulse" :
-    connStatus === "connecting"   ? "bg-yellow-400 animate-ping" :
-    connStatus === "disconnected" ? "bg-gray-500"                :
-                                    "bg-red-500";
+  // ── WS error / disconnected ───────────────────────────────────────────────
+  const wsError = connStatus === "error" || connStatus === "disconnected";
 
   return (
-    <div className="rounded-2xl border border-[#1E2A3A] bg-[#121826] shadow-xl shadow-black/40 p-5 flex flex-col gap-4 h-full">
+    <div className="rounded-2xl border border-[#1E2A3A] bg-[#121826] shadow-xl shadow-black/40 p-5 flex flex-col gap-3 h-full">
 
       {/* ── Header ── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="w-1 h-5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]" />
+      <div className="flex items-center justify-between flex-wrap gap-2">
+
+        {/* Left: title + badges */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="w-1 h-5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444] shrink-0" />
           <h2 className="text-white font-semibold text-base tracking-tight">Threat Alerts</h2>
-          {/* Total session count */}
+
           {totalAlerts > 0 && (
-            <span className="text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full">
+            <span className="text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full tabular-nums">
               {totalAlerts}
             </span>
           )}
-          {/* HIGH-only pulse badge */}
           {highCount > 0 && (
-            <span className="text-[10px] font-bold bg-red-600/30 text-red-300 border border-red-500/50 px-2 py-0.5 rounded-full animate-pulse">
+            <span className="text-[10px] font-bold bg-red-600/30 text-red-300 border border-red-500/50 px-2 py-0.5 rounded-full animate-pulse tabular-nums">
               {highCount} HIGH
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${connDot}`} title={`WS: ${connStatus}`} />
+
+        {/* Right: filter + WS dot + clear */}
+        <div className="flex items-center gap-2 shrink-0">
+
+          {/* HIGH filter toggle */}
+          <button
+            onClick={toggleFilter}
+            title={showHighOnly ? "Show all alerts" : "Show HIGH only"}
+            className={[
+              "text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-colors",
+              showHighOnly
+                ? "bg-red-500/20 text-red-300 border-red-500/40"
+                : "bg-transparent text-gray-500 border-gray-700 hover:text-gray-300 hover:border-gray-500",
+            ].join(" ")}
+          >
+            HIGH only
+          </button>
+
+          {/* WS dot */}
+          <span
+            className={`w-2 h-2 rounded-full shrink-0 ${CONN_DOT[connStatus] ?? "bg-gray-500"}`}
+            title={`WebSocket: ${connStatus}`}
+          />
+
+          {/* Clear button */}
           {alerts.length > 0 && (
             <button
               onClick={clearAlerts}
@@ -241,36 +195,63 @@ export default function AlertPanel() {
         </div>
       </div>
 
+      {/* ── WS error banner ── */}
+      {wsError && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/8 px-3 py-2 text-xs text-red-400 fade-in">
+          <span className="shrink-0">⚠</span>
+          <span>
+            {connStatus === "error"
+              ? "WebSocket error — alerts may be delayed. Reconnecting…"
+              : "WebSocket disconnected — waiting to reconnect…"}
+          </span>
+        </div>
+      )}
+
       {/* ── Alert list ── */}
       <div
         ref={scrollRef}
         className="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0 pr-1 alert-scroll"
         style={{ scrollbarWidth: "thin", scrollbarColor: "#1E2A3A transparent" }}
       >
-        {alerts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-3 text-gray-600">
-            <span className="text-4xl select-none">🛡️</span>
-            <span className="text-sm font-medium text-gray-500">No threats detected</span>
-            <span className="text-xs">
-              {connStatus === "connected" ? "Monitoring active" : `Status: ${connStatus}`}
+        {visibleAlerts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 gap-3 select-none">
+            <span className="text-4xl">🛡️</span>
+            <span className="text-sm font-medium text-gray-500">
+              {showHighOnly ? "No HIGH alerts" : "No threats detected"}
+            </span>
+            <span className="text-xs text-gray-600">
+              {connStatus === "connected"
+                ? "Monitoring active"
+                : wsError
+                ? "Connection lost"
+                : `Status: ${connStatus}`}
             </span>
           </div>
         ) : alertCards}
       </div>
 
-      {/* ── Footer ── */}
-      <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-[#1E2A3A] shrink-0">
+      {/* ── Footer — legend + confidence tooltip + count ── */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-2 border-t border-[#1E2A3A] shrink-0">
         {[
           { label: "HIGH",   color: "#ef4444" },
           { label: "MEDIUM", color: "#f59e0b" },
           { label: "LOW",    color: "#22c55e" },
         ].map(({ label, color }) => (
           <div key={label} className="flex items-center gap-1.5 text-[10px] text-gray-500">
-            <span className="w-2 h-2 rounded-full" style={{ background: color }} />
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
             <span style={{ color }}>{label}</span>
           </div>
         ))}
-        <span className="ml-auto text-[10px] text-gray-600 tabular-nums">{alerts.length} / 10</span>
+
+        {/* Confidence tooltip */}
+        <div className="flex items-center gap-1 text-[10px] text-gray-600">
+          <span>Conf</span>
+          <ConfidenceTip />
+        </div>
+
+        <span className="ml-auto text-[10px] text-gray-600 tabular-nums">
+          {visibleAlerts.length} / {alerts.length}
+        </span>
       </div>
     </div>
   );

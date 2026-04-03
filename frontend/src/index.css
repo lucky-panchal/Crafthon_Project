@@ -21,6 +21,21 @@ body {
 }
 .alert-blink { animation: alertBlink 0.7s ease-out; }
 
+/* ── Alert slide in from top ───────────────────────────────────────────────────────────────── */
+@keyframes alertSlideIn {
+  from { opacity: 0; transform: translateY(-12px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)      scale(1);    }
+}
+.alert-slide-in { animation: alertSlideIn 0.28s cubic-bezier(0.4, 0, 0.2, 1) both; }
+
+/* ── HIGH alert continuous glow pulse ──────────────────────────────────────────────────────── */
+@keyframes alertHighPulse {
+  0%   { box-shadow: 0 0 18px #ef444428, 0 0 6px #ef444418; }
+  50%  { box-shadow: 0 0 28px #ef444440, 0 0 10px #ef444428; }
+  100% { box-shadow: 0 0 18px #ef444428, 0 0 6px #ef444418; }
+}
+.alert-high-pulse { animation: alertHighPulse 2s ease-in-out infinite; }
+
 /* ── Slide in from top ───────────────────────────────────────────────────── */
 @keyframes slideInDown {
   from { opacity: 0; transform: translateY(-10px); }
@@ -161,6 +176,8 @@ body {
   border-radius: 6px; pointer-events: none;
   transition: opacity 0.15s ease; z-index: 50;
 }
+/* Multi-line override — add class="tooltip-wrap" to the tooltip-text span */
+.has-tooltip .tooltip-text[style*="normal"] { white-space: normal; }
 .has-tooltip:hover .tooltip-text { visibility: visible; opacity: 1; }
 /* Panel-level tooltip — anchors below top-left of wrapper */
 .has-tooltip.panel-tip .tooltip-text {
