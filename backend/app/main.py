@@ -13,5 +13,6 @@ def root():
     return {"message": "Backend running"}
 
 
-# All simulation-related routes are served under /api
+# Mounted twice — with and without /api prefix, same handlers, no duplication
 app.include_router(simulate.router, prefix="/api")
+app.include_router(simulate.router)
