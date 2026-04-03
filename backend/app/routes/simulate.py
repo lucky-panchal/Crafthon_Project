@@ -28,3 +28,14 @@ def set_simulation_mode(new_mode: str):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"mode": get_mode()}
+
+
+# POST /inject/jamming and /inject/spoofing — aliases for frontend compatibility
+@router.post("/inject/jamming")
+def inject_jamming():
+    return set_simulation_mode("jamming")
+
+
+@router.post("/inject/spoofing")
+def inject_spoofing():
+    return set_simulation_mode("spoofing")
