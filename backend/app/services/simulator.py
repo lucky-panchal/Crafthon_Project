@@ -24,7 +24,7 @@ def generate_with_attack() -> dict:
     data = generate_data()
     mode = get_mode()
     if mode != "normal":
-        last = alerts[-1]["type"] if alerts else None
-        if last != mode:
+        last = alerts[-1]["message"] if alerts else None
+        if last is None or mode not in last.lower():
             add_alert(mode, 80)
     return apply_attack(data, mode)
