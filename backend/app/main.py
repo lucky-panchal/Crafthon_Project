@@ -7,10 +7,11 @@ from app.routes import simulate
 
 app = FastAPI(title="DefComm Shield Backend")
 
-# Allow frontend dev server to talk to backend
+# Allow all origins during hackathon — tighten after demo
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

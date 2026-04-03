@@ -1,16 +1,19 @@
 # In-memory alert tracking system.
-# Stores attack alerts as a simple list. No database, no persistence.
+# Alert shape matches frontend Alert interface: { id, message, time }
 
-import time
+from datetime import datetime
 
 alerts: list = []
+_counter = 0
 
 
 def add_alert(alert_type: str, risk: int) -> None:
+    global _counter
+    _counter += 1
     alerts.append({
-        "type": alert_type,
-        "risk": risk,
-        "timestamp": time.time(),
+        "id": _counter,
+        "message": f"{alert_type.capitalize()} attack detected (risk: {risk})",
+        "time": datetime.now().strftime("%H:%M:%S"),
     })
 
 

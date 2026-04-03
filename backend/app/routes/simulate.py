@@ -7,21 +7,23 @@ from app.services.simulator import generate_with_attack
 from app.services.attack_engine import resolve_attack
 from app.services.state import set_mode, get_mode
 from app.services.alerts import get_alerts
-from app.models.schema import SimulateResponse
 
 router = APIRouter()
 
 
-# GET /simulate — generates fresh signal data, applies active attack, returns locked response shape
-@router.get("/simulate", response_model=SimulateResponse)
+# GET /simulate — returns flat signal fields matching frontend SimulationData interface
+@router.get("/simulate")
 def simulate():
-    attack = resolve_attack()          # None | "jamming" | "spoofing"
-    risk = 80 if attack else 0         # temporary until ML scoring is wired
-    return SimulateResponse(
-        data=generate_with_attack(),   # base data + attack mutation applied
-        attack=attack,
-        risk=risk,
-    )
+    attack = resolve_attack()
+    risk = 80 if attack else 0
+    data = generate_with_attack()
+    return {
+        "packet_rate": data["packet_rate"],
+        "snr": data["snr"],
+        "packet_loss": data["packet_loss"],
+        "attack": attack,
+        "risk": risk,
+    }
 
 
 # POST /mode/{mode} — switches global simulation mode, validates before applying
@@ -45,7 +47,7 @@ def inject_spoofing():
     return set_simulation_mode("spoofing")
 
 
-# GET /alerts — returns full in-memory alert list, resets on server restart
+# GET /alerts — returns plain array matching frontend Alert[] type
 @router.get("/alerts")
 def alerts():
-    return {"alerts": get_alerts()}
+    return get_alerts()
