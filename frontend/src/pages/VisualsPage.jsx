@@ -1,8 +1,28 @@
-import { AreaChart, Area, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { AreaChart, Area, LineChart, Line, BarChart, Bar, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import useSignalStore from "../store/useSignalStore";
 import useSimulationStore from "../store/useSimulationStore";
 
 const TIP_STYLE = { background: "#0D1220", border: "1px solid #1a2535", borderRadius: 8, fontSize: 11 };
+
+function PacketLossDot({ cx, cy, payload }) {
+  const value = payload?.packetLoss;
+  if (cx == null || cy == null || value == null) return null;
+
+  const isCritical = value > 20;
+  const fill = "#f59e0b";
+
+  return (
+    <circle
+      cx={cx}
+      cy={cy}
+      r={isCritical ? 5 : 3.5}
+      fill={fill}
+      stroke="#0D1220"
+      strokeWidth={1.2}
+      style={{ filter: `drop-shadow(0 0 ${isCritical ? 5 : 3}px ${fill})` }}
+    />
+  );
+}
 
 export default function VisualsPage() {
   const history    = useSignalStore((s) => s.history);
@@ -43,7 +63,7 @@ export default function VisualsPage() {
         </div>
       </div>
 
-      {/* Packet Loss Area */}
+      {/* Packet Loss Scatter */}
       <div className="glass rounded-2xl border border-[#1E2A3A] p-3 flex flex-col gap-1 min-h-0">
         <div className="flex items-center justify-between shrink-0">
           <span className="text-white font-semibold text-xs">Packet Loss</span>
@@ -51,19 +71,13 @@ export default function VisualsPage() {
         </div>
         <div className="flex-1 min-h-0">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={history} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
-              <defs>
-                <linearGradient id="vgLoss" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.4} />
-                  <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
-                </linearGradient>
-              </defs>
+            <ScatterChart data={history} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1a2535" vertical={false} />
               <XAxis dataKey="time" tick={{ fill: "#475569", fontSize: 8 }} axisLine={{ stroke: "#1a2535" }} tickLine={false} interval="preserveStartEnd" />
-              <YAxis tick={{ fill: "#475569", fontSize: 8 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#475569", fontSize: 8 }} axisLine={false} tickLine={false} domain={[0, 50]} />
               <Tooltip contentStyle={TIP_STYLE} />
-              <Area type="monotone" dataKey="packetLoss" name="Packet Loss %" stroke="#f59e0b" strokeWidth={2} fill="url(#vgLoss)" dot={false} isAnimationActive={false} />
-            </AreaChart>
+              <Scatter dataKey="packetLoss" name="Packet Loss %" fill="#f59e0b" shape={<PacketLossDot />} isAnimationActive={false} />
+            </ScatterChart>
           </ResponsiveContainer>
         </div>
       </div>
@@ -81,7 +95,7 @@ export default function VisualsPage() {
               <XAxis dataKey="time" tick={{ fill: "#475569", fontSize: 8 }} axisLine={{ stroke: "#1a2535" }} tickLine={false} interval="preserveStartEnd" />
               <YAxis tick={{ fill: "#475569", fontSize: 8 }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={TIP_STYLE} />
-              <Bar dataKey="packetLoss" name="Packet Loss %" fill="#f59e0b" opacity={0.7} radius={[2, 2, 0, 0]} isAnimationActive={false} />
+              <Bar dataKey="packetRate" name="Packet Rate" fill="#3b82f6" opacity={0.7} radius={[2, 2, 0, 0]} isAnimationActive={false} />
             </BarChart>
           </ResponsiveContainer>
         </div>

@@ -396,6 +396,7 @@ const useSignalStore = create((set, get) => ({
         time:       next.lastUpdated ?? s.lastUpdated,
         snr:        next.snr        ?? s.snr,
         packetLoss: next.packetLoss ?? s.packetLoss,
+        packetRate: next.packetRate ?? s.packetRate,
       },
     ];
 
@@ -474,7 +475,7 @@ const useSignalStore = create((set, get) => ({
         source:      "fallback",
         history:     [
           ...s.history.slice(-(MAX_HISTORY - 1)),
-          { time: now, snr: nextSnr, packetLoss: nextLoss },
+          { time: now, snr: nextSnr, packetLoss: nextLoss, packetRate: nextPR },
         ],
       });
     }, FALLBACK_INTERVAL_MS);

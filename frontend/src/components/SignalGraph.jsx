@@ -16,6 +16,7 @@ import { useMemo } from "react";
 import {
   ComposedChart,
   Line,
+  Scatter,
   XAxis,
   YAxis,
   Tooltip,
@@ -86,6 +87,27 @@ function AnomalyDot({ cx, cy, value, dataKey }) {
       stroke="#0B0F1A"
       strokeWidth={1.5}
       style={{ filter: "drop-shadow(0 0 4px #ef4444)" }}
+    />
+  );
+}
+
+function PacketLossScatterPoint({ cx, cy, payload }) {
+  const value = payload?.packetLoss;
+  if (cx == null || cy == null || value == null) return null;
+
+  const isAnomaly = value > LOSS_CRITICAL;
+  const radius = isAnomaly ? 5 : 3.25;
+  const fill = isAnomaly ? COLOR_ANOMALY : COLOR_LOSS;
+
+  return (
+    <circle
+      cx={cx}
+      cy={cy}
+      r={radius}
+      fill={fill}
+      stroke="#0B0F1A"
+      strokeWidth={isAnomaly ? 1.5 : 1}
+      style={{ filter: `drop-shadow(0 0 ${isAnomaly ? 4 : 2}px ${fill})` }}
     />
   );
 }
@@ -208,20 +230,17 @@ export default function SignalGraph() {
             style={{ filter: `drop-shadow(0 0 4px ${COLOR_SNR})` }}
           />
 
-          {/* Packet Loss line */}
-          <Line
+          {/* Packet Loss scatter */}
+          <Scatter
             yAxisId="loss"
-            type="monotone"
             dataKey="packetLoss"
             name="Packet Loss (%)"
-            stroke={COLOR_LOSS}
-            strokeWidth={2.5}
-            dot={(props) => <AnomalyDot {...props} dataKey="packetLoss" />}
-            activeDot={{ r: 4, fill: COLOR_LOSS, strokeWidth: 0 }}
+            fill={COLOR_LOSS}
+            shape={<PacketLossScatterPoint />}
+            legendType="circle"
             isAnimationActive={true}
             animationDuration={400}
             animationEasing="ease-out"
-            style={{ filter: `drop-shadow(0 0 4px ${COLOR_LOSS})` }}
           />
 
         </ComposedChart>
