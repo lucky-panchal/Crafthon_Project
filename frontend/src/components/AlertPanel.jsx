@@ -127,7 +127,7 @@ function ThreatRow({ row, isActive, latestSnr, latestPacketRate }) {
         {/* Risk badge */}
         {isActive && (
           <span
-            className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+            className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${
               row.risk === "HIGH"
                 ? "bg-red-500/20 text-red-300 border-red-500/40"
                 : "bg-green-500/20 text-green-300 border-green-500/40"
@@ -140,7 +140,7 @@ function ThreatRow({ row, isActive, latestSnr, latestPacketRate }) {
         {/* Live metric */}
         {liveMetric && (
           <span
-            className="text-[10px] font-mono tabular-nums px-2 py-0.5 rounded-md border"
+            className="text-xs font-mono tabular-nums px-2 py-0.5 rounded-md border"
             style={{
               color:            row.activeColor,
               borderColor:      `${row.activeColor}40`,
@@ -153,7 +153,7 @@ function ThreatRow({ row, isActive, latestSnr, latestPacketRate }) {
       </div>
 
       {/* Reason */}
-      <p className={`text-[10px] leading-relaxed pl-[18px] ${isActive ? "text-slate-400" : "text-slate-600"}`}>
+      <p className={`text-xs leading-relaxed pl-[18px] ${isActive ? "text-slate-400" : "text-slate-600"}`}>
         {isActive ? row.reason : "Inactive — not currently detected"}
       </p>
 
@@ -161,7 +161,7 @@ function ThreatRow({ row, isActive, latestSnr, latestPacketRate }) {
       <div className="pl-[18px] flex items-center gap-2">
         <ConfBar value={row.confidence} color={row.activeColor} active={isActive} />
         {isActive && (
-          <span className="text-[9px] tabular-nums shrink-0" style={{ color: row.activeColor }}>
+          <span className="text-[11px] tabular-nums shrink-0" style={{ color: row.activeColor }}>
             {row.confidence}%
           </span>
         )}
@@ -231,20 +231,20 @@ export default function AlertPanel() {
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between pt-2 border-t border-[#1E2A3A] shrink-0">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#1E2A3A] shrink-0">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {[
             { label: "NORMAL",   color: "#22c55e" },
             { label: "JAMMING",  color: "#ef4444" },
             { label: "SPOOFING", color: "#f59e0b" },
           ].map(({ label, color }) => (
-            <div key={label} className="flex items-center gap-1.5 text-[10px] text-gray-500">
+            <div key={label} className="flex items-center gap-1.5 text-xs text-gray-500">
               <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
               <span style={{ color }}>{label}</span>
             </div>
           ))}
         </div>
-        <span className="text-[10px] text-gray-600 tabular-nums">
+        <span className="text-xs text-gray-600 tabular-nums">
           {connStatus === "connected" ? "● Live" : connStatus}
         </span>
       </div>

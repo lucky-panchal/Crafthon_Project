@@ -18,12 +18,13 @@ import ExplainPanel        from "../components/ExplainPanel";
 import ModelStats          from "../components/ModelStats";
 import Timeline            from "../components/Timeline";
 
-import { useState }                            from "react";
+import { useState }                           from "react";
 import { useWebSocket }                        from "../hooks/useWebSocket";
 import { useDetectionSocket }                  from "../hooks/useDetectionSocket";
 import { useSiren }                            from "../hooks/useSiren";
 import { DetectionProvider, useDetection }     from "../context/DetectionContext";
 import useSimulationStore                      from "../store/useSimulationStore";
+import useSignalStore                          from "../store/useSignalStore";
 import { ToastProvider }                       from "../components/Toast";
 import DatasetUploader                         from "../components/DatasetUploader";
 
@@ -68,16 +69,16 @@ function StatCard({ label, value, color, sub, icon, delay = "", onClick }) {
       className={`card px-4 py-4 sm:px-5 sm:py-5 flex flex-col gap-2 fade-up ${delay} transition-all duration-200 hover:scale-[1.02] ${onClick ? "cursor-pointer hover:border-slate-500 hover:shadow-lg" : ""}`}
     >
       <div className="flex items-center justify-between">
-        <span className="text-[10px] sm:text-xs text-slate-500 uppercase tracking-widest font-medium">{label}</span>
+        <span className="text-xs sm:text-[13px] text-slate-500 uppercase tracking-widest font-medium">{label}</span>
         <div className="flex items-center gap-1.5">
           {icon && <span className="text-base opacity-60">{icon}</span>}
           {onClick && <span className="text-[9px] text-slate-600">↗</span>}
         </div>
       </div>
-      <span className="text-xl sm:text-2xl font-bold tabular-nums transition-all duration-500 leading-none" style={{ color }}>
+      <span className="text-2xl sm:text-3xl font-bold tabular-nums transition-all duration-500 leading-none" style={{ color }}>
         {value}
       </span>
-      <span className="text-[10px] sm:text-xs text-slate-600">{sub}</span>
+      <span className="text-xs sm:text-[13px] text-slate-600">{sub}</span>
     </div>
   );
 }
@@ -119,20 +120,29 @@ function ConnBadge({ connStatus }) {
 
 // ── Inner dashboard ───────────────────────────────────────────────────────────
 function DashboardInner() {
-  const { history, latest, status, connStatus, lastUpdated } = useWebSocket();
+  const { history: wsHistory, latest, status, connStatus, lastUpdated } = useWebSocket();
+  const storeSource  = useSignalStore((s) => s.source);
+  const storeHistory = useSignalStore((s) => s.history);
+  // Use dataset history when playing back a file, otherwise live WS history
+  const history = storeSource === "dataset" ? storeHistory : (wsHistory.length ? wsHistory : storeHistory);
   useDetectionSocket();
   useSiren();
 
-  const [activePage, setActivePage] = useState("dashboard");
-  const [authModal,  setAuthModal]  = useState(null);
+  const [activePage,    setActivePage]    = useState("dashboard");
+  const [authModal,     setAuthModal]     = useState(null);
+  const [mobileNav,     setMobileNav]     = useState(false);
+  const [sideCollapsed, setSideCollapsed] = useState(false);
 
   const mode = useSimulationStore((s) => s.mode);
   const { overlayClass, chartClass, snrColor, badgeStatus, badgeLabel, isThreat } = useModeVisuals(mode);
 
-  const packetRate = latest?.packetRate ?? null;
-  const snr        = latest?.snr        ?? null;
+  const signalSnr        = useSignalStore((s) => s.snr);
+  const signalPacketRate = useSignalStore((s) => s.packetRate);
+  const packetRate = signalPacketRate ?? latest?.packetRate ?? null;
+  const snr        = signalSnr        ?? latest?.snr        ?? null;
   const snrColor_  = snr !== null && snr < 15 ? "#ef4444" : snr !== null && snr < 20 ? "#f59e0b" : "#22c55e";
 
+  const offsetClass = `content-offset${sideCollapsed ? " sidebar-collapsed" : ""}`;
   const sirenBg     = isThreat ? "bg-[#0D0608]" : "bg-[#080C14]";
   const sirenHeader = isThreat ? "bg-[#1a0608]/95 border-red-900/60" : "bg-[#0D1220]/95 border-[#1a2535]";
 
@@ -154,9 +164,16 @@ function DashboardInner() {
 
       {authModal && <AuthModal mode={authModal} onClose={() => setAuthModal(null)} />}
 
-      <Sidebar activePage={activePage} onNavigate={setActivePage} onAuthOpen={setAuthModal} />
+      <Sidebar
+        activePage={activePage}
+        onNavigate={setActivePage}
+        onAuthOpen={setAuthModal}
+        mobileOpen={mobileNav}
+        onMobileClose={() => setMobileNav(false)}
+        onCollapsedChange={setSideCollapsed}
+      />
 
-      <div style={{ marginLeft: "200px" }}>
+      <div className={offsetClass}>
         <SystemStatusBar />
         <CriticalAlertBanner />
       </div>
@@ -170,33 +187,41 @@ function DashboardInner() {
       {overlayClass && <div className={`fixed inset-0 z-0 ${overlayClass}`} aria-hidden="true" />}
 
       {/* Header — glass */}
-      <header
-        className={`glass relative z-20 border-b backdrop-blur-xl sticky top-0 transition-colors duration-700 ${isThreat ? "border-red-900/40" : ""}`}
-        style={{ marginLeft: "200px" }}
-      >
-        <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3">
+      <header className={`${offsetClass} glass relative z-20 border-b backdrop-blur-xl sticky top-0 transition-colors duration-700 ${isThreat ? "border-red-900/40" : ""}`}>
+        <div className="px-3 sm:px-6 py-2.5 sm:py-4 flex items-center justify-between gap-2 sm:gap-3">
+
+          {/* Mobile hamburger */}
+          <button
+            className="md:hidden flex items-center justify-center w-8 h-8 rounded-lg border border-slate-700/50 bg-white/5 text-slate-400 hover:text-white shrink-0"
+            onClick={() => setMobileNav(v => !v)}
+            aria-label="Open navigation"
+          >
+            <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
 
           {/* Left — brand */}
-          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-            <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shrink-0 transition-all duration-700 ${isThreat ? "bg-red-600 shadow-[0_0_20px_#ef444480]" : "bg-blue-600 shadow-[0_0_16px_#3b82f660]"}`}>
-              <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4 sm:w-5 sm:h-5 text-white" stroke="currentColor" strokeWidth={2}>
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className={`w-7 h-7 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shrink-0 transition-all duration-700 ${isThreat ? "bg-red-600 shadow-[0_0_20px_#ef444480]" : "bg-blue-600 shadow-[0_0_16px_#3b82f660]"}`}>
+              <svg viewBox="0 0 24 24" fill="none" className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-white" stroke="currentColor" strokeWidth={2}>
                 <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
               </svg>
             </div>
             <div className="min-w-0">
-              <h1 className="text-sm sm:text-base font-bold tracking-tight text-white leading-tight">RAKSHA</h1>
-              <p className="text-[9px] sm:text-[10px] text-slate-500 leading-none hidden sm:block">Real-Time Threat Monitor</p>
+              <h1 className="fluid-title font-bold tracking-tight text-white leading-tight">RakSha</h1>
+              <p className="fluid-small text-slate-500 leading-none hidden sm:block">Real-Time Threat Monitor</p>
             </div>
           </div>
 
           {/* Center — Upload Dataset */}
-          <div className="flex-1 flex justify-center">
+          <div className="flex-1 flex justify-center min-w-0 overflow-hidden">
             <DatasetUploader />
           </div>
 
           {/* Right — badges */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <span className="text-[10px] text-slate-500 hidden md:block tabular-nums">{lastUpdated}</span>
+            <span className="fluid-small text-slate-500 hidden md:block tabular-nums">{lastUpdated}</span>
             <ConnBadge connStatus={connStatus} />
             <StatusBadge status={badgeStatus} label={badgeLabel} />
           </div>
@@ -205,13 +230,13 @@ function DashboardInner() {
       </header>
 
       {/* Main */}
-      <main className="relative z-10 px-2 sm:px-3 py-4 flex flex-col gap-3" style={{ marginLeft: "200px" }}>
+      <main className={`${offsetClass} relative z-10 px-2 sm:px-4 lg:px-6 py-4 flex flex-col gap-3`}>
 
         {/* ── Non-dashboard pages ── */}
         {pageContent ? pageContent : (
           <>
             {/* Row 1 — stat cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
               <StatCard label="Packet Rate" value={packetRate !== null ? `${packetRate}` : "--"} color={isThreat ? "#ef4444" : "#3b82f6"} sub="packets / sec"   icon="📶" delay="stagger-1" onClick={() => setActivePage("visuals")} />
               <StatCard label="Signal SNR"  value={snr !== null ? `${snr} dB` : "--"}            color={snrColor_}                        sub="signal-to-noise" icon="📡" delay="stagger-2" onClick={() => setActivePage(mode === "JAMMING" ? "jamming" : "visuals")} />
               <StatCard label="Data Points" value={history.length}                               color={isThreat ? "#ef4444" : "#a855f7"} sub="rolling window"  icon="📊" delay="stagger-3" onClick={() => setActivePage("visuals")} />
@@ -219,7 +244,7 @@ function DashboardInner() {
             </div>
 
             {/* Row 2 — chart + alerts */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 fade-up stagger-2">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 fade-up stagger-2">
               <div className="lg:col-span-2 cursor-pointer" onClick={() => setActivePage("visuals")}>
                 <ChartCard title="Signal Traffic Overview" badge={<StatusBadge status={badgeStatus} label="Live" />} className={chartClass}>
                   <ResponsiveContainer width="100%" height={260}>
@@ -251,8 +276,8 @@ function DashboardInner() {
                     ].map(({ label, value, unit, color, bg }) => (
                       <div key={label} className={`flex items-center gap-2 border rounded-lg px-3 py-1.5 ${bg}`}>
                         <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: color }} />
-                        <span className="text-[10px] sm:text-xs text-slate-400">{label}</span>
-                        <span className="text-[10px] sm:text-xs font-bold tabular-nums" style={{ color }}>{value}{unit ? ` ${unit}` : ""}</span>
+                        <span className="text-xs sm:text-[13px] text-slate-400">{label}</span>
+                        <span className="text-xs sm:text-[13px] font-bold tabular-nums" style={{ color }}>{value}{unit ? ` ${unit}` : ""}</span>
                       </div>
                     ))}
                   </div>
@@ -285,8 +310,8 @@ function DashboardInner() {
               <div className="cursor-pointer" onClick={() => setActivePage("history")}><LogsPanel /></div>
             </div>
 
-            <p className="text-center text-[10px] sm:text-xs text-slate-700 pb-4">
-              RAKSHA · AI Threat Engine v1.0 · Real-Time Signal Defence System
+            <p className="text-center text-xs sm:text-[13px] text-slate-700 pb-4">
+              RakSha · AI Threat Engine v1.0 · Real-Time Signal Defence System
             </p>
           </>
         )}

@@ -1,0 +1,13 @@
+{
+  "name": "crafthon-project",
+  "version": "1.0.0",
+  "description": "Crafthon Project - Full Stack Application",
+  "scripts": {
+    "dev": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "install-frontend": "cd frontend && npm install"
+  },
+  "workspaces": [
+    "frontend"
+  ]
+}

@@ -80,9 +80,43 @@ function parseJSON(text) {
   } catch { return []; }
 }
 
+// ── Excel parser (xlsx library) ──────────────────────────────────────────────
+async function parseExcel(file) {
+  try {
+    const XLSX       = await import("xlsx");
+    const buffer     = await file.arrayBuffer();
+    const workbook   = XLSX.read(buffer, { type: "array" });
+    const sheet      = workbook.Sheets[workbook.SheetNames[0]];
+    return XLSX.utils.sheet_to_json(sheet, { defval: "" });
+  } catch { return []; }
+}
+
+const EXCEL_EXTS = [".xlsx", ".xls", ".ods", ".xlsm", ".xlsb", ".xltx", ".xltm", ".xlt", ".xlam", ".xla"];
+
 // ── Master file parser ────────────────────────────────────────────────────────
 export async function parseDatasetFile(file) {
   const name = file.name.toLowerCase();
+
+  // PKL — binary Python pickle; cannot be parsed in browser.
+  if (name.endsWith(".pkl")) {
+    return [{ time: "T+0", snr: 25, packetLoss: 5, packetRate: 300, _pkl: true, _filename: file.name }];
+  }
+
+  // Excel / ODS — use xlsx library for proper binary parsing
+  if (EXCEL_EXTS.some((ext) => name.endsWith(ext))) {
+    const rows = await parseExcel(file);
+    const points = rows
+      .map((r, i) => ({ ...extractRow(r), idx: i }))
+      .filter((r) => r.snr !== null || r.packetLoss !== null || r.packetRate !== null)
+      .map((r, i) => ({
+        time:       `T+${i}`,
+        snr:        r.snr        ?? 25,
+        packetLoss: r.packetLoss ?? 5,
+        packetRate: r.packetRate ?? 300,
+      }));
+    return points;
+  }
+
   const text = await file.text().catch(() => "");
 
   let rows = [];
@@ -91,10 +125,6 @@ export async function parseDatasetFile(file) {
   else if (name.endsWith(".tsv"))                     rows = parseTSV(text);
   else if (name.endsWith(".json"))                    rows = parseJSON(text);
   else if (name.endsWith(".txt") || name.endsWith(".log")) rows = parseCSV(text).length > 1 ? parseCSV(text) : parseTSV(text);
-  else if (name.endsWith(".xlsx") || name.endsWith(".xls") || name.endsWith(".ods")) {
-    // Excel/ODS — try to parse as CSV fallback (binary won't work, but we won't crash)
-    rows = parseCSV(text);
-  }
   else {
     // PDF, DOCX, etc — extract any numbers from plain text lines
     const numLines = text.split(/\r?\n/).filter((l) => /[\d.]+/.test(l));

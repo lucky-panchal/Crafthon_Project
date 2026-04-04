@@ -92,7 +92,7 @@ function WsStatusDot({ connStatus }) {
   return (
     <span className="flex items-center gap-1.5" title={`WebSocket: ${cfg.label}`}>
       <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
-      <span className={`text-[10px] font-medium hidden sm:block ${cfg.text}`}>{cfg.label}</span>
+      <span className={`text-xs font-medium hidden sm:block ${cfg.text}`}>{cfg.label}</span>
     </span>
   );
 }
@@ -141,7 +141,7 @@ function SimButton({ label, icon, tooltip, isActive, isLoading, disabled, onClic
 function ConfirmBar({ storeMode, onConfirm, onCancel }) {
   const cfg = BUTTONS.find((b) => b.storeMode === storeMode);
   return (
-    <div className="flex items-center gap-2 rounded-xl border border-gray-600/50 bg-gray-800/60 px-3 py-2 text-xs fade-in">
+    <div className="flex items-center flex-wrap gap-2 rounded-xl border border-gray-600/50 bg-gray-800/60 px-3 py-2 text-xs fade-in">
       <span className="text-gray-300 flex-1">
         Inject <span className="font-bold text-white">{storeMode}</span>? This will affect live data.
       </span>
@@ -247,7 +247,7 @@ export default function ControlPanel() {
   [lastSynced]);
 
   return (
-    <div className="glass rounded-2xl border shadow-xl shadow-black/40 p-6 flex flex-col gap-5">
+    <div className="glass rounded-2xl border shadow-xl shadow-black/40 p-4 sm:p-6 flex flex-col gap-4 sm:gap-5">
 
       {/* ── Header ── */}
       <div className="flex items-center gap-2.5">
@@ -256,7 +256,7 @@ export default function ControlPanel() {
           <h2 className="text-white font-bold text-base tracking-tight leading-tight">
             Attack Simulation Engine
           </h2>
-          <p className="text-[10px] text-gray-500 mt-0.5">
+          <p className="text-xs text-gray-500 mt-0.5">
             Force backend into a specific attack scenario
           </p>
         </div>
@@ -300,7 +300,7 @@ export default function ControlPanel() {
         </button>
       )}
 
-      {/* ── Buttons ── */}}
+      {/* ── Buttons ── */}
       <div className="flex flex-col gap-2.5">
         {BUTTONS.map((cfg) => (
           <SimButton
@@ -318,7 +318,7 @@ export default function ControlPanel() {
       </div>
 
       {/* ── Footer ── */}
-      <div className="flex items-center justify-between text-[10px] text-gray-600">
+      <div className="flex items-center justify-between text-xs text-gray-600">
         <span>
           {syncedLabel
             ? <>Synced <span className="text-gray-500">{syncedLabel}</span></>
