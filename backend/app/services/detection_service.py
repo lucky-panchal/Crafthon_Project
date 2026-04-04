@@ -151,7 +151,6 @@ def analyze_telemetry(row: Dict[str, Any]) -> Dict[str, Any]:
     Always returns the full canonical detection object including timestamp.
     Safe to call from WebSocket tick, dataset batch, and HTTP endpoints.
     """
-    print(f"[ML PIPELINE] Running analyze_telemetry | keys={list(row.keys())} | snr={row.get('snr')} loss={row.get('packet_loss')} rate={row.get('packet_rate')}")
     t0 = time.perf_counter()
 
     # Stage 1
@@ -166,14 +165,11 @@ def analyze_telemetry(row: Dict[str, Any]) -> Dict[str, Any]:
     if is_model_ready():
         features = build_feature_vector(row)
         if sum(features) == 0:
-            print("[WARNING] Feature vector is all zeros — check key mapping")
+            logger.debug("[ML] Feature vector is all zeros; check dataset key mapping.")
         ml_out   = predict_anomaly(features)
         ml_hit   = ml_out["anomaly"]
         ml_conf  = ml_out["confidence"]
         ml_score = ml_out["score"]
-        print(f"[ML] model prediction: anomaly={ml_hit} confidence={ml_conf:.1f}% score={ml_score:.4f}")
-    else:
-        print("[ML] Model not ready — running RULE_FALLBACK")
 
     # Merge
     if not is_model_ready():
@@ -205,7 +201,10 @@ def analyze_telemetry(row: Dict[str, Any]) -> Dict[str, Any]:
     reason = _build_reason(row, anomaly, source)
 
     elapsed = (time.perf_counter() - t0) * 1000
-    print(f"[Detection] source={source} anomaly={anomaly} conf={confidence:.1f}% risk={risk} t={elapsed:.2f}ms")
+    logger.debug(
+        "[Detection] source=%s anomaly=%s conf=%.1f risk=%s t=%.2fms",
+        source, anomaly, confidence, risk, elapsed
+    )
 
     return {
         "anomaly":    anomaly,

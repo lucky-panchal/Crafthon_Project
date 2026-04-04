@@ -23,6 +23,7 @@
 
 const BASE_URL     = "http://localhost:8000";
 const TIMEOUT_MS   = 1_500;
+const MAX_ANALYSIS_ROWS = 2_000;
 
 // ── Typed error ───────────────────────────────────────────────────────────────
 
@@ -144,10 +145,47 @@ export async function getSimulationMode() {
  * Uses a long timeout (60s) since datasets can be large.
  */
 export async function analyseDataset(rows, filename) {
+  const prepared = prepareRowsForAnalysis(rows);
   return apiFetch("/analyse", {
     method: "POST",
-    body:   JSON.stringify({ rows, filename }),
+    body:   JSON.stringify({
+      rows: prepared.rows,
+      filename,
+      original_total: prepared.originalTotal,
+    }),
   }, 60_000);
+}
+
+function slimRow(row) {
+  return {
+    time: row.time,
+    snr: row.snr,
+    packetLoss: row.packetLoss ?? row.packet_loss,
+    packetRate: row.packetRate ?? row.packet_rate,
+    source_id: row.source_id,
+  };
+}
+
+function sampleRows(rows, maxRows) {
+  if (rows.length <= maxRows) return rows;
+  if (maxRows <= 1) return [rows[0]];
+
+  const sampled = [];
+  const step = (rows.length - 1) / (maxRows - 1);
+
+  for (let i = 0; i < maxRows; i += 1) {
+    sampled.push(rows[Math.round(i * step)]);
+  }
+
+  return sampled;
+}
+
+function prepareRowsForAnalysis(rows) {
+  const canonical = rows.map(slimRow);
+  return {
+    rows: sampleRows(canonical, MAX_ANALYSIS_ROWS),
+    originalTotal: rows.length,
+  };
 }
 
 /**

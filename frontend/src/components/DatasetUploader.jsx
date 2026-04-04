@@ -104,9 +104,12 @@ export default function DatasetUploader() {
     setPhase("idle"); setResult(null); setErrorMsg("");
     try {
       const points = await parseDatasetFile(file);
+      if (points.length === 0) {
+        throw new Error("No usable telemetry columns found in the uploaded file.");
+      }
       commitPoints(points, file.name);
-    } catch {
-      setErrorMsg("Could not read file — try CSV, JSON or Excel.");
+    } catch (err) {
+      setErrorMsg(err?.message ?? "Could not read file — try CSV, JSON or Excel.");
       setPhase("error");
       setTimeout(() => setPhase("idle"), 3000);
     }
@@ -150,7 +153,12 @@ export default function DatasetUploader() {
 
   // ── Analyse ───────────────────────────────────────────────────────────────
   const handleAnalyse = useCallback(async () => {
-    if (!parsedRows) return;
+    if (!parsedRows || parsedRows.length === 0) {
+      setErrorMsg("Upload a dataset with usable telemetry rows before analysis.");
+      setPhase("error");
+      setTimeout(() => setPhase("ready"), 3000);
+      return;
+    }
     setPhase("analysing"); setResult(null);
     const controller = new AbortController();
     abortRef.current = controller;
@@ -361,7 +369,11 @@ export default function DatasetUploader() {
         ) : (
           <span className="text-[11px] text-green-400 font-medium">Clean — no threats</span>
         )}
-        <span className="text-[10px] text-slate-600">{result.total_rows} rows</span>
+        <span className="text-[10px] text-slate-600">
+          {result.sampled
+            ? `${result.analyzed_rows} analysed / ${result.total_rows} uploaded`
+            : `${result.total_rows} rows`}
+        </span>
         <button
           onClick={handleAnalyse}
           className="text-[10px] text-slate-500 hover:text-blue-400 border border-slate-700 hover:border-blue-500/40 px-2 py-1 rounded-lg transition-all"
