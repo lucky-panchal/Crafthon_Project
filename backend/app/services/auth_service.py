@@ -1,12 +1,15 @@
 import os
 import uuid
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Any, Optional
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from dotenv import load_dotenv
-import motor.motor_asyncio
+try:
+    import motor.motor_asyncio as motor_asyncio
+except ModuleNotFoundError:
+    motor_asyncio = None
 
 load_dotenv(override=True)
 
@@ -19,14 +22,21 @@ MONGO_DB   = os.getenv("MONGODB_DB", "raksha")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # ── MongoDB client ────────────────────────────────────────────────────────────
-_client: Optional[motor.motor_asyncio.AsyncIOMotorClient] = None
+_client: Optional[Any] = None
 _db     = None
 _col    = None
 
+def _ensure_auth_store():
+    if motor_asyncio is None:
+        raise RuntimeError("Auth backend requires the 'motor' package. Install backend requirements first.")
+    if not MONGO_URI:
+        raise RuntimeError("Auth backend requires MONGODB_URI to be set.")
+
 def get_db():
     global _client, _db, _col
+    _ensure_auth_store()
     if _client is None:
-        _client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_URI)
+        _client = motor_asyncio.AsyncIOMotorClient(MONGO_URI)
         _db     = _client[MONGO_DB]
         _col    = _db["users"]
     return _col
