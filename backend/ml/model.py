@@ -142,7 +142,6 @@ def predict_anomaly(features: List[float]) -> dict:
         if elapsed > 50:
             logger.warning(f"[ML] Inference exceeded 50 ms budget: {elapsed:.2f} ms")
 
-        print(f"[ML STATUS] ACTIVE")
         return {
             "anomaly":    is_anomaly,
             "score":      round(score, 6),

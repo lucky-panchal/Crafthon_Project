@@ -32,32 +32,246 @@ function step(current, cfg) {
 let _fallbackTimer  = null;
 let _datasetTimer   = null;
 
+const FIELD_ALIASES = {
+  time: [
+    "time", "timestamp", "datetime", "date", "eventtime", "recordedat",
+  ],
+  snr: [
+    "snr", "snrdb", "signaltonoiseratio", "signaltonoise", "signalnoise",
+  ],
+  packetLoss: [
+    "packetloss", "packetlosspct", "packetlosspercent", "losspct",
+    "losspercentage", "losspercent", "loss", "pktloss", "droprate",
+  ],
+  packetRate: [
+    "packetrate", "packetspersecond", "pps", "pktrate", "rate",
+    "trafficrate", "throughput", "packets",
+  ],
+  sourceId: ["sourceid", "srcid", "deviceid"],
+};
+
+function normalizeKey(value) {
+  return String(value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function parseNumber(value) {
+  if (value == null) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+
+  const text = String(value).trim();
+  if (!text || /^(n\/a|na|null|none|nan|undefined|unknown|--?)$/i.test(text)) return null;
+
+  const compact = text.replace(/,/g, "");
+  const direct = Number(compact);
+  if (Number.isFinite(direct)) return direct;
+
+  const match = compact.match(/[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/);
+  if (!match) return null;
+
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getAliasedValue(row, aliases, { numeric = true } = {}) {
+  for (const [key, value] of Object.entries(row)) {
+    if (!aliases.includes(normalizeKey(key))) continue;
+    if (!numeric) return value;
+    const parsed = parseNumber(value);
+    if (parsed !== null) return parsed;
+  }
+  return null;
+}
+
+function getNumericColumns(row) {
+  return Object.entries(row)
+    .map(([key, value]) => ({ key, value: parseNumber(value) }))
+    .filter((entry) => entry.value !== null);
+}
+
+function inferRowFromNumbers(row) {
+  const numericColumns = getNumericColumns(row).filter(({ key }) => {
+    const normalized = normalizeKey(key);
+    return !["id", "idx", "index", "row", "line", "year"].includes(normalized);
+  });
+
+  if (numericColumns.length === 0) return null;
+
+  return {
+    time: getAliasedValue(row, FIELD_ALIASES.time, { numeric: false }),
+    snr: numericColumns[0]?.value ?? null,
+    packetLoss: numericColumns[1]?.value ?? null,
+    packetRate: numericColumns[2]?.value ?? null,
+    source_id: getAliasedValue(row, FIELD_ALIASES.sourceId),
+    _inferred: true,
+  };
+}
+
+function toObjects(table) {
+  if (!Array.isArray(table) || table.length < 2) return [];
+  const [headerRow, ...bodyRows] = table;
+  const headers = headerRow.map((cell) => String(cell ?? "").trim().replace(/^"|"$/g, ""));
+  return bodyRows
+    .filter((row) => row.some((cell) => String(cell ?? "").trim() !== ""))
+    .map((row) => Object.fromEntries(headers.map((header, index) => [header, row[index] ?? ""])));
+}
+
+function parseDelimited(text, delimiter = ",") {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    const next = text[i + 1];
+
+    if (char === "\"") {
+      if (inQuotes && next === "\"") {
+        cell += "\"";
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (!inQuotes && char === delimiter) {
+      row.push(cell);
+      cell = "";
+      continue;
+    }
+
+    if (!inQuotes && (char === "\n" || char === "\r")) {
+      if (char === "\r" && next === "\n") i += 1;
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+      continue;
+    }
+
+    cell += char;
+  }
+
+  if (cell.length || row.length) {
+    row.push(cell);
+    rows.push(row);
+  }
+
+  return toObjects(rows);
+}
+
+function buildDatasetPoints(rows) {
+  let pointIndex = 0;
+
+  return rows
+    .map((row) => {
+      const extracted = extractRow(row);
+      if (extracted.snr === null && extracted.packetLoss === null && extracted.packetRate === null) {
+        return null;
+      }
+
+      const time = extracted.time == null || String(extracted.time).trim() === ""
+        ? `T+${pointIndex}`
+        : String(extracted.time);
+
+      const point = {
+        ...row,
+        time,
+        snr: extracted.snr ?? 25,
+        packetLoss: extracted.packetLoss ?? 0,
+        packetRate: extracted.packetRate ?? 0,
+        _rowIndex: pointIndex,
+      };
+
+      if (extracted.source_id !== null) point.source_id = extracted.source_id;
+
+      pointIndex += 1;
+      return point;
+    })
+    .filter(Boolean);
+}
+
+function buildFallbackPoints(rows) {
+  let pointIndex = 0;
+
+  return rows
+    .map((row) => {
+      const inferred = inferRowFromNumbers(row);
+      if (!inferred) return null;
+
+      const point = {
+        ...row,
+        time: inferred.time == null || String(inferred.time).trim() === "" ? `T+${pointIndex}` : String(inferred.time),
+        snr: inferred.snr ?? 25,
+        packetLoss: inferred.packetLoss ?? 0,
+        packetRate: inferred.packetRate ?? 0,
+        _rowIndex: pointIndex,
+        _inferred: true,
+      };
+
+      if (inferred.source_id !== null) point.source_id = inferred.source_id;
+
+      pointIndex += 1;
+      return point;
+    })
+    .filter(Boolean);
+}
+
+function extractRowsFromText(text) {
+  return text
+    .split(/\r?\n/)
+    .map((line) => {
+      const values = Array.from(line.matchAll(/[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/g), (match) => Number(match[0]));
+      if (values.length === 0) return null;
+      return {
+        raw: line,
+        snr: values[0] ?? 25,
+        packetLoss: values[1] ?? 0,
+        packetRate: values[2] ?? 0,
+      };
+    })
+    .filter(Boolean);
+}
+
+function buildBaselinePoint(name, text = "") {
+  return [{
+    time: "T+0",
+    snr: 25,
+    packetLoss: 0,
+    packetRate: 0,
+    _rowIndex: 0,
+    _fallback: true,
+    _filename: name,
+    raw: text.slice(0, 500),
+  }];
+}
+
 // ── Dataset row parser ────────────────────────────────────────────────────────
 // Tries to extract snr, packetLoss, packetRate from any row object.
 function extractRow(row) {
-  const k = (obj, ...keys) => {
-    for (const key of keys) {
-      const found = Object.keys(obj).find((k) => k.toLowerCase().replace(/[^a-z]/g, "") === key);
-      if (found !== undefined && obj[found] !== "" && !isNaN(Number(obj[found]))) return Number(obj[found]);
-    }
-    return null;
-  };
+  const numericColumns = getNumericColumns(row);
+
+  let snr = getAliasedValue(row, FIELD_ALIASES.snr);
+  let packetLoss = getAliasedValue(row, FIELD_ALIASES.packetLoss);
+  let packetRate = getAliasedValue(row, FIELD_ALIASES.packetRate);
+
+  if (snr === null && packetLoss === null && packetRate === null && numericColumns.length >= 3 && numericColumns.length <= 4) {
+    [snr, packetLoss, packetRate] = numericColumns.slice(0, 3).map((entry) => entry.value);
+  }
+
   return {
-    snr:        k(row, "snr", "signaltonoise", "signal"),
-    packetLoss: k(row, "packetloss", "loss", "pktloss", "losspct"),
-    packetRate: k(row, "packetrate", "rate", "pktrate", "packets"),
+    time: getAliasedValue(row, FIELD_ALIASES.time, { numeric: false }),
+    snr,
+    packetLoss,
+    packetRate,
+    source_id: getAliasedValue(row, FIELD_ALIASES.sourceId),
   };
 }
 
 // ── CSV parser (no dependency) ────────────────────────────────────────────────
 function parseCSV(text) {
-  const lines  = text.trim().split(/\r?\n/);
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
-  return lines.slice(1).map((line) => {
-    const vals = line.split(",").map((v) => v.trim().replace(/^"|"$/g, ""));
-    return Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? ""]));
-  });
+  return parseDelimited(text, ",");
 }
 
 // ── TSV / plain text parser ───────────────────────────────────────────────────
@@ -99,22 +313,14 @@ export async function parseDatasetFile(file) {
 
   // PKL — binary Python pickle; cannot be parsed in browser.
   if (name.endsWith(".pkl")) {
-    return [{ time: "T+0", snr: 25, packetLoss: 5, packetRate: 300, _pkl: true, _filename: file.name }];
+    return [{ time: "T+0", snr: 25, packetLoss: 0, packetRate: 0, _pkl: true, _filename: file.name }];
   }
 
   // Excel / ODS — use xlsx library for proper binary parsing
   if (EXCEL_EXTS.some((ext) => name.endsWith(ext))) {
     const rows = await parseExcel(file);
-    const points = rows
-      .map((r, i) => ({ ...extractRow(r), idx: i }))
-      .filter((r) => r.snr !== null || r.packetLoss !== null || r.packetRate !== null)
-      .map((r, i) => ({
-        time:       `T+${i}`,
-        snr:        r.snr        ?? 25,
-        packetLoss: r.packetLoss ?? 5,
-        packetRate: r.packetRate ?? 300,
-      }));
-    return points;
+    const points = buildDatasetPoints(rows);
+    return points.length > 0 ? points : buildFallbackPoints(rows).length > 0 ? buildFallbackPoints(rows) : buildBaselinePoint(file.name);
   }
 
   const text = await file.text().catch(() => "");
@@ -134,18 +340,17 @@ export async function parseDatasetFile(file) {
     });
   }
 
-  // Extract valid signal rows
-  const points = rows
-    .map((r, i) => ({ ...extractRow(r), idx: i }))
-    .filter((r) => r.snr !== null || r.packetLoss !== null || r.packetRate !== null)
-    .map((r, i) => ({
-      time:       `T+${i}`,
-      snr:        r.snr        ?? 25,
-      packetLoss: r.packetLoss ?? 5,
-      packetRate: r.packetRate ?? 300,
-    }));
+  let points = buildDatasetPoints(rows);
+  if (points.length > 0) return points;
 
-  return points;
+  points = buildFallbackPoints(rows);
+  if (points.length > 0) return points;
+
+  const textRows = extractRowsFromText(text);
+  points = buildFallbackPoints(textRows);
+  if (points.length > 0) return points;
+
+  return buildBaselinePoint(file.name, text);
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
