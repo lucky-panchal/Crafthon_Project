@@ -149,3 +149,11 @@ export async function analyseDataset(rows, filename) {
     body:   JSON.stringify({ rows, filename }),
   }, 60_000);
 }
+
+/**
+ * GET /detection/latest
+ * Fetch the current detection state snapshot from the backend.
+ */
+export async function fetchLatestDetection() {
+  return apiFetch("/detection/latest", {}, 5_000);
+}

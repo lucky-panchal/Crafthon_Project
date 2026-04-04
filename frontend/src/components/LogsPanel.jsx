@@ -83,7 +83,7 @@ function LogRow({ entry, isNewest }) {
     <div
       className={[
         "grid gap-x-3 px-3 py-2",
-        "border-b border-[#1a2535]/60 text-[11px] tabular-nums items-center",
+        "border-b border-[#1a2535]/60 text-xs tabular-nums items-center",
         isNewest ? "slide-in-left" : "",
         isModeChange ? "log-row-mode" : entry.status === "ALERT" ? "bg-white/[0.02]" : "",
       ].join(" ")}
@@ -145,7 +145,7 @@ export default function LogsPanel() {
           <span className="w-1 h-5 rounded-full bg-indigo-500 shadow-[0_0_8px_#6366f1]" />
           <h2 className="text-white font-semibold text-base tracking-tight">Detection Log</h2>
         </div>
-        <div className="flex items-center gap-3 text-[10px] text-gray-600">
+        <div className="flex items-center gap-3 text-xs text-gray-600">
           <span className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-purple-400/60" />mode changes
           </span>
@@ -155,16 +155,16 @@ export default function LogsPanel() {
 
       {/* Table */}
       <div
-        className="log-scroll overflow-y-auto max-h-64"
+        className="log-scroll overflow-x-auto overflow-y-auto max-h-64"
         style={{ scrollbarWidth: "thin", scrollbarColor: "#1a2535 transparent" }}
       >
-        {/* Min-width wrapper prevents grid collapse on small screens */}
-        <div className="min-w-[480px]">
+        {/* Min-width wrapper prevents grid collapse — scrolls horizontally on small screens */}
+        <div style={{ minWidth: "480px" }}>
           {/* Column headers */}
           <div className="grid gap-x-3 px-3 pb-2 border-b border-[#1a2535] sticky top-0 bg-[#111827] z-10"
             style={{ gridTemplateColumns: "80px 1fr 48px 60px 52px" }}>
             {["Time", "Type / Mode", "Conf", "Source", "Risk"].map((h) => (
-              <span key={h} className="text-[9px] text-slate-600 uppercase tracking-widest font-semibold">{h}</span>
+              <span className="text-xs text-slate-600 uppercase tracking-widest font-semibold">{h}</span>
             ))}
           </div>
 
